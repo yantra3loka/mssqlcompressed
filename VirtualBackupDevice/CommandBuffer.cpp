@@ -111,6 +111,7 @@ BackupDevice::BackupDevice()
 {
 	mVd = NULL;
 	mVds = NULL;
+	mConfig = NULL;
 }
 
 BackupDevice::~BackupDevice()
@@ -126,11 +127,21 @@ BackupDevice::~BackupDevice()
 		mVds->Release();
 	}
 
+
+	Marshal::FreeHGlobal(mDeviceName);
+
+	if (mConfig != NULL) 
+	{
+		delete mConfig;
+	}
+
 	mVd = NULL;
 	mVds = NULL;
 }
 
-void BackupDevice::Connect(String ^deviceName, TimeSpan timeout, INotifyWhenReady^ notifyWhenReady)
+
+
+void BackupDevice::PreConnect(String ^deviceName)
 {
 	if (mVd != NULL || mVds != NULL)
 	{
@@ -153,56 +164,44 @@ void BackupDevice::Connect(String ^deviceName, TimeSpan timeout, INotifyWhenRead
 	}
 
 
+	mConfig = new VDConfig;
+
 	// very simple config that is "pipe-like"
-	VDConfig config;
-	memset(&config, 0, sizeof(config));  
-	config.deviceCount = 1;
+	memset(mConfig, 0, sizeof(*mConfig));  
+	mConfig->deviceCount = 1;
 
 
-	IntPtr lDeviceName = Marshal::StringToHGlobalUni(deviceName);
+	mDeviceName = Marshal::StringToHGlobalUni(deviceName);
 
-	hr = mVds->CreateEx(NULL, (LPCWSTR)lDeviceName.ToPointer(), &config);
+	hr = mVds->CreateEx(NULL, (LPCWSTR)mDeviceName.ToPointer(), mConfig);
 	if (!SUCCEEDED(hr)) 
 	{
-		Marshal::FreeHGlobal(lDeviceName);
 		throw gcnew System::InvalidProgramException(String::Format("VDS::Create failed: x{0}", hr));
 	}
 	
 
+}
 
-	//if (isInput) 
-	//{
-	//	printf("Ready for restore command, for example:\n");
-	//	wprintf(L"RESTORE DATABASE [database] FROM VIRTUAL_DEVICE='%s';\n", deviceName);
-	//}
-	//else 
-	//{
-	//	printf("Ready for backup command, for example:\n");
-	//	wprintf(L"BACKUP DATABASE [database] TO VIRTUAL_DEVICE='%s';\n", deviceName);
-	//}
+void BackupDevice::Connect(TimeSpan timeout)
+{
 
 	DWORD dwTimeout = (DWORD)timeout.TotalMilliseconds;
 
-	notifyWhenReady->Ready();
-
-	hr = mVds->GetConfiguration(dwTimeout, &config);
+	HRESULT hr = mVds->GetConfiguration(dwTimeout, mConfig);
 	if (!SUCCEEDED(hr)) 
 	{
-		Marshal::FreeHGlobal(lDeviceName);
 		throw gcnew System::InvalidProgramException(String::Format("timeout exceeded: x{0}", hr));
 	}
 
 
 	IClientVirtualDevice* vd;
-	hr = mVds->OpenDevice((LPCWSTR)lDeviceName.ToPointer(), &vd);
+	hr = mVds->OpenDevice((LPCWSTR)mDeviceName.ToPointer(), &vd);
 	mVd = vd;
 	if (!SUCCEEDED(hr)) 
 	{
-		Marshal::FreeHGlobal(lDeviceName);
 		throw gcnew System::InvalidProgramException(String::Format("VDS::OpenDevice failed: x{0}", hr));
 	}
 
-	Marshal::FreeHGlobal(lDeviceName);
 
 }
 

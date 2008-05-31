@@ -28,7 +28,6 @@ using System.Reflection;
 
 using VirtualBackupDevice;
 
-
 namespace MSSQLBackupPipe
 {
     class Program
@@ -38,19 +37,40 @@ namespace MSSQLBackupPipe
             try
             {
 
-                Console.WriteLine("Starting");
 
                 Dictionary<string, Type> pipelineComponents = LoadPipelineComponents();
 
 
                 bool isBackup;
-                string deviceName;
+                string deviceName = Guid.NewGuid().ToString();
                 string filename;
-                List<ConfigPair> pipelineConfig = ParseArgs(args, pipelineComponents, out deviceName, out filename, out isBackup);
+                string databaseName;
+                List<ConfigPair> pipelineConfig = ParseArgs(args, pipelineComponents, out databaseName, out filename, out isBackup);
 
-                NotifyWhenReady notifyWhenReady = new NotifyWhenReady(deviceName, isBackup);
-                RunPipeline(isBackup, deviceName, filename, pipelineConfig, notifyWhenReady);
+                //NotifyWhenReady notifyWhenReady = new NotifyWhenReady(deviceName, isBackup);
+                using (DeviceThread device = new DeviceThread())
+                {
+                    using (SqlThread sql = new SqlThread())
+                    {
+                        sql.PreConnect(databaseName, deviceName, isBackup);
+                        device.PreConnect(isBackup, deviceName, filename, pipelineConfig);
+                        device.ConnectInAnoterThread();
+                        sql.ConnectInAnoterThread();
+                        Exception e = sql.WaitForCompletion();
+                        if (e != null)
+                        {
+                            Console.WriteLine(e.Message);
+                            Console.WriteLine(e.StackTrace);
+                        }
 
+                        e = device.WaitForCompletion();
+                        if (e != null)
+                        {
+                            Console.WriteLine(e.Message);
+                            Console.WriteLine(e.StackTrace);
+                        }
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -74,166 +94,39 @@ namespace MSSQLBackupPipe
 
         }
 
-        private static void RunPipeline(bool isBackup, string deviceName, string filename, List<ConfigPair> pipelineConfig, NotifyWhenReady notifyWhenReady)
-        {
-
-            FileInfo fileInfo = new FileInfo(filename);
-            bool fileExistsInitially = fileInfo.Exists;
-
-            try
-            {
-                FileMode mode = isBackup ? FileMode.Create : FileMode.Open;
-
-                using (FileStream fileStream = new FileStream(filename, mode))
-                {
-                    using (Stream topOfPipeline = CreatePipeline(pipelineConfig, fileStream, isBackup))
-                    {
-                        using (BackupDevice dev = new BackupDevice())
-                        {
-                            dev.Connect(deviceName, new TimeSpan(0, 5, 0), notifyWhenReady);
-                            CommandBuffer buff = new CommandBuffer();
-
-                            try
-                            {
-                                ReadWriteData(dev, buff, topOfPipeline, isBackup);
-                            }
-                            catch (Exception)
-                            {
-                                dev.SignalAbort();
-                                throw;
-                            }
-
-                        }
-                    }
-                }
-            }
-            catch
-            {
-
-                if (isBackup && fileInfo.Exists && !fileExistsInitially)
-                {
-                    fileInfo.Delete();
-                }
-
-                throw;
-            }
-        }
-
-        private class NotifyWhenReady : INotifyWhenReady
-        {
-            private bool mIsBackup;
-            private string mDeviceName;
-
-            public NotifyWhenReady(string deviceName, bool isBackup) {
-                mIsBackup = isBackup;
-                mDeviceName = deviceName;
-            }
-
-            #region INotifyWhenReady Members
-
-            public void Ready()
-            {
-                if (mIsBackup)
-                {
-                    Console.WriteLine("Ready for backup command, like");
-                    Console.WriteLine(string.Format("BACKUP DATABASE [database] TO VIRTUAL_DEVICE='{0}';", mDeviceName));
-                }
-                else
-                {
-                    Console.WriteLine("Ready for restore command, like");
-                    Console.WriteLine(string.Format("RESTORE DATABASE [database] FROM VIRTUAL_DEVICE='{0}';", mDeviceName));
-                }
-            }
-
-            #endregion
-        }
-
-        private static void ReadWriteData(BackupDevice dev, CommandBuffer buff, Stream stream, bool isBackup)
-        {
-            while (dev.GetCommand(buff))
-            {
-
-                CompletionCode completionCode = CompletionCode.DISK_FULL;
-                int bytesTransferred = 0;
-
-                try
-                {
-
-                    switch (buff.GetCommandType())
-                    {
-                        case DeviceCommandType.Write:
-
-                            if (!isBackup)
-                            {
-                                throw new InvalidOperationException("Cannot write in 'restore' mode");
-                            }
-
-                            stream.Write(buff.GetBuffer(), 0, buff.GetCount());
-                            bytesTransferred = buff.GetCount();
-
-                            completionCode = CompletionCode.SUCCESS;
-
-                            break;
-                        case DeviceCommandType.Read:
-
-                            if (isBackup)
-                            {
-                                throw new InvalidOperationException("Cannot read in 'backup' mode");
-                            }
-
-                            byte[] buffArray = buff.GetBuffer();
-                            bytesTransferred = stream.Read(buffArray, 0, buff.GetCount());
-                            buff.SetBuffer(buffArray, bytesTransferred);
-
-                            if (bytesTransferred > 0)
-                            {
-                                completionCode = CompletionCode.SUCCESS;
-                            }
-                            else
-                            {
-                                completionCode = CompletionCode.HANDLE_EOF;
-                            }
-
-                            break;
-                        case DeviceCommandType.ClearError:
-                            completionCode = CompletionCode.SUCCESS;
-                            break;
-
-                        case DeviceCommandType.Flush:
-                            completionCode = CompletionCode.SUCCESS;
-                            break;
-
-                    }
-                }
-                finally
-                {
-                    dev.CompleteCommand(buff, completionCode, bytesTransferred);
-                }
-
-
-            }
-        }
 
 
 
-        private static Stream CreatePipeline(List<ConfigPair> pipelineConfig, Stream fileStream, bool isBackup)
-        {
-            Stream topStream = fileStream;
+        //private class NotifyWhenReady : INotifyWhenReady
+        //{
+        //    private bool mIsBackup;
+        //    private string mDeviceName;
 
-            for (int i = pipelineConfig.Count - 1; i >= 0; i--)
-            {
-                ConfigPair config = pipelineConfig[i];
+        //    public NotifyWhenReady(string deviceName, bool isBackup)
+        //    {
+        //        mIsBackup = isBackup;
+        //        mDeviceName = deviceName;
+        //    }
 
-                IBackupTransformer tran = config.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupTransformer;
-                if (tran == null)
-                {
-                    throw new ArgumentException(string.Format("Unable to create pipe component: {0}", config.TransformationType.Name));
-                }
-                topStream = isBackup ? tran.GetBackupWriter(config.ConfigString, topStream) : tran.GetRestoreReader(config.ConfigString, topStream);
-            }
+        //    #region INotifyWhenReady Members
 
-            return topStream;
-        }
+        //    public void Ready()
+        //    {
+        //        if (mIsBackup)
+        //        {
+        //            Console.WriteLine("Ready for backup command, like");
+        //            Console.WriteLine(string.Format("BACKUP DATABASE [database] TO VIRTUAL_DEVICE='{0}';", mDeviceName));
+        //        }
+        //        else
+        //        {
+        //            Console.WriteLine("Ready for restore command, like");
+        //            Console.WriteLine(string.Format("RESTORE DATABASE [database] FROM VIRTUAL_DEVICE='{0}';", mDeviceName));
+        //        }
+        //    }
+
+        //    #endregion
+        //}
+
 
 
         private static Dictionary<string, Type> LoadPipelineComponents()
@@ -260,6 +153,8 @@ namespace MSSQLBackupPipe
 
             return result;
         }
+
+
 
         private static void FindPlugins(Assembly dll, Dictionary<string, Type> result)
         {
@@ -291,15 +186,17 @@ namespace MSSQLBackupPipe
             }
         }
 
-        private static List<ConfigPair> ParseArgs(string[] args, Dictionary<string, Type> pipelineComponents, out string deviceName, out string filename, out bool isBackup)
+
+
+        private static List<ConfigPair> ParseArgs(string[] args, Dictionary<string, Type> pipelineComponents, out string databaseName, out string filename, out bool isBackup)
         {
-            bool deviceNameFound = false;
+            bool databaseNameFound = false;
             bool pipelineFound = false;
             bool directionFound = false;
 
             List<ConfigPair> pipeline = null;
             isBackup = true;
-            deviceName = null;
+            databaseName = null;
             filename = null;
 
             int i = 0;
@@ -308,21 +205,25 @@ namespace MSSQLBackupPipe
                 string arg = args[i];
                 switch (arg)
                 {
-                    case "-d":
-                        if (deviceNameFound)
+                    case "--db":
+                        if (databaseNameFound)
                         {
-                            throw new ArgumentException("The device name cannot be set twice.");
+                            throw new ArgumentException("The database name cannot be set twice.");
                         }
 
                         i++;
                         if (i >= args.Length)
                         {
-                            throw new ArgumentException("Please provide a device name after the -d switch.");
+                            throw new ArgumentException("Please provide a database name after the --db switch.");
                         }
 
-                        deviceName = args[i];
+                        databaseName = args[i].Trim();
+                        if (databaseName.Length >= 2 && databaseName[0] == '[' && databaseName[databaseName.Length - 1] == ']')
+                        {
+                            databaseName = databaseName.Substring(1, databaseName.Length - 2);
+                        }
 
-                        deviceNameFound = true;
+                        databaseNameFound = true;
                         break;
 
                     case "-p":
@@ -375,9 +276,9 @@ namespace MSSQLBackupPipe
                 i++;
             }
 
-            if (!deviceNameFound)
+            if (!databaseNameFound)
             {
-                throw new ArgumentException("Required -d switch, device name, is missing.");
+                throw new ArgumentException("Required --db switch, database name, is missing.");
             }
 
             if (!pipelineFound)
@@ -392,6 +293,8 @@ namespace MSSQLBackupPipe
 
             return pipeline;
         }
+
+
 
         private static List<ConfigPair> BuildPipelineFromString(string pipelineString, Dictionary<string, Type> pipelineComponents, out string filename)
         {
@@ -461,7 +364,6 @@ namespace MSSQLBackupPipe
 
             return results;
         }
-
 
 
         private static void PrintUsage()

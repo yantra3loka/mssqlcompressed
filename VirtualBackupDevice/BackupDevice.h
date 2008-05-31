@@ -39,7 +39,6 @@
 
 #include "CommandBuffer.h"
 #include "CompletionCode.h"
-#include "INotifyWhenReady.h"
 
 
 using namespace System;
@@ -53,7 +52,8 @@ namespace VirtualBackupDevice
 	public:
 		BackupDevice();
 		~BackupDevice();
-		void Connect(String^ deviceName, TimeSpan timeout, INotifyWhenReady^ notifyWhenReady);
+		void PreConnect(String^ deviceName);
+		void Connect(TimeSpan timeout);
 		bool GetCommand(CommandBuffer^ cBuff);
 		void CompleteCommand(CommandBuffer^ command, CompletionCode completionCode, int bytesTransferred);
 		void SignalAbort();
@@ -61,5 +61,7 @@ namespace VirtualBackupDevice
 	private:
 		IClientVirtualDeviceSet2* mVds;
 		IClientVirtualDevice* mVd;
+		IntPtr mDeviceName;
+		VDConfig* mConfig;
 	};
 }

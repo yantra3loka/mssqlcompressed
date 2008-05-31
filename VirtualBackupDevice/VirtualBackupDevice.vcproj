@@ -410,10 +410,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\INotifyWhenReady.h"
-				>
-			</File>
-			<File
 				RelativePath=".\resource.h"
 				>
 			</File>
