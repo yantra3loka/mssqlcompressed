@@ -24,7 +24,6 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
-using VirtualBackupDevice;
 using ICSharpCode.SharpZipLib.Zip;
 
 namespace MSSQLBackupPipe.StdPlugins
@@ -63,6 +62,12 @@ namespace MSSQLBackupPipe.StdPlugins
         Stream IBackupTransformer.GetRestoreReader(string config, Stream readFromStream)
         {
             return new FirstFileZipInputStream(readFromStream);
+        }
+
+        public string GetConfigHelp()
+        {
+            //TODO: GetConfigHelp
+            return @"";
         }
 
         #endregion

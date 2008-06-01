@@ -6,6 +6,7 @@ using System.IO;
 using System.Reflection;
 
 using VirtualBackupDevice;
+using MSSQLBackupPipe.StdPlugins;
 
 namespace MSSQLBackupPipe
 {
@@ -164,7 +165,7 @@ namespace MSSQLBackupPipe
             {
                 ConfigPair config = pipelineConfig[i];
 
-                IBackupTransformer tran = config.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupTransformer;
+                MSSQLBackupPipe.StdPlugins.IBackupTransformer tran = config.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as MSSQLBackupPipe.StdPlugins.IBackupTransformer;
                 if (tran == null)
                 {
                     throw new ArgumentException(string.Format("Unable to create pipe component: {0}", config.TransformationType.Name));
