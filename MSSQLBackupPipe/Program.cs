@@ -75,15 +75,17 @@ namespace MSSQLBackupPipe
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
-                Console.WriteLine(e.StackTrace);
+                //Console.WriteLine(e.StackTrace);
 
                 Exception ie = e;
                 while (ie.InnerException != null)
                 {
                     ie = ie.InnerException;
                 }
-                Console.WriteLine(ie.Message);
-
+                if (!ie.Equals(e))
+                {
+                    Console.WriteLine(ie.Message);
+                }
 
 
                 PrintUsage();
@@ -172,6 +174,12 @@ namespace MSSQLBackupPipe
                                 if (test != null)
                                 {
                                     string name = test.GetName().ToLowerInvariant();
+
+                                    if (name.Contains("|") || name.Contains("("))
+                                    {
+                                        throw new ArgumentException(string.Format("The name of the plugin, {0}, cannot contain these characters: |, (", name));
+                                    }
+
                                     if (result.ContainsKey(name))
                                     {
                                         throw new ArgumentException(string.Format("plugin found twice: {0}", name));
@@ -182,7 +190,10 @@ namespace MSSQLBackupPipe
                         }
                     }
                 }
-                catch { }
+                catch (Exception e)
+                {
+                    Console.WriteLine(string.Format("Warning: Plugin not loaded due to error: {0}", e.Message));
+                }
             }
         }
 

@@ -29,18 +29,35 @@ using ICSharpCode.SharpZipLib.Zip;
 
 namespace MSSQLBackupPipe.StdPlugins
 {
-    public class ZipTransform : IBackupTransformer
+    public class Zip64Transform : IBackupTransformer
     {
         #region IBackupTransformer Members
 
         Stream IBackupTransformer.GetBackupWriter(string config, Stream writeToStream)
         {
-            return new OneFileZipOutputStream("test", 7, writeToStream);
+            Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
+
+            string filename = "database.bak";
+            int level = 7;
+
+            string sLevel;
+            if (parsedConfig.TryGetValue("level", out sLevel))
+            {
+                int.TryParse(sLevel, out level);
+            }
+
+            parsedConfig.TryGetValue("filename", out filename);
+
+            Console.WriteLine(string.Format("ZipTransform: level = {0}, filename={1}", level, filename));
+
+
+
+            return new OneFileZipOutputStream(filename, level, writeToStream);
         }
 
         string IBackupTransformer.GetName()
         {
-            return "zip";
+            return "zip64";
         }
 
         Stream IBackupTransformer.GetRestoreReader(string config, Stream readFromStream)

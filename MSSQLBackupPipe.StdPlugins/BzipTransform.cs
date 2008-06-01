@@ -28,7 +28,7 @@ using ICSharpCode.SharpZipLib.BZip2;
 
 using VirtualBackupDevice;
 
-namespace MSSQLBackupPipe.Plugins
+namespace MSSQLBackupPipe.StdPlugins
 {
     public class BzipTransform : IBackupTransformer
     {
@@ -37,7 +37,17 @@ namespace MSSQLBackupPipe.Plugins
 
         Stream IBackupTransformer.GetBackupWriter(string config, Stream writeToStream)
         {
-            return new BZip2OutputStream(writeToStream, 9);
+            Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
+            int level = 1;
+            string sLevel;
+            if (parsedConfig.TryGetValue("level", out sLevel))
+            {
+                int.TryParse(sLevel, out level);
+            }
+
+            Console.WriteLine(string.Format("BzipTransform: level = {0}", level));
+
+            return new BZip2OutputStream(writeToStream, level);
         }
 
         string IBackupTransformer.GetName()

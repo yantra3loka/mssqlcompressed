@@ -35,8 +35,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BzipTransform.cs" />
+    <Compile Include="ConfigUtil.cs" />
+    <Compile Include="GzipTransform.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ZipTransform.cs" />
+    <Compile Include="Zip64Transform.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ICSharpCode.SharpZipLib.dll" />
