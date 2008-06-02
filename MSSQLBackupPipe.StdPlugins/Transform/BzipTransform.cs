@@ -34,7 +34,7 @@ namespace MSSQLBackupPipe.StdPlugins
 
         #region IBackupTransformer Members
 
-        Stream IBackupTransformer.GetBackupWriter(string config, Stream writeToStream)
+        public  Stream GetBackupWriter(string config, Stream writeToStream)
         {
             Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
             int level = 1;
@@ -49,12 +49,12 @@ namespace MSSQLBackupPipe.StdPlugins
             return new BZip2OutputStream(writeToStream, level);
         }
 
-        string IBackupTransformer.GetName()
+        public string GetName()
         {
             return "bzip2";
         }
 
-        Stream IBackupTransformer.GetRestoreReader(string config, Stream readFromStream)
+        public Stream GetRestoreReader(string config, Stream readFromStream)
         {
             Console.WriteLine(string.Format("BzipTransform"));
 

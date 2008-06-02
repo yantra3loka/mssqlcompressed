@@ -39,37 +39,51 @@ namespace MSSQLBackupPipe
             {
 
 
-                Dictionary<string, Type> pipelineComponents = LoadPipelineComponents();
+                Dictionary<string, Type> pipelineComponents = LoadComponents("IBackupTransformer");
+                Dictionary<string, Type> databaseComponents = LoadComponents("IBackupDatabase");
+                Dictionary<string, Type> destinationComponents = LoadComponents("IBackupDestination");
 
 
-                bool isBackup;
-                string deviceName = Guid.NewGuid().ToString();
-                string filename;
-                string databaseName;
-                List<ConfigPair> pipelineConfig = ParseArgs(args, pipelineComponents, out databaseName, out filename, out isBackup);
-
-                //NotifyWhenReady notifyWhenReady = new NotifyWhenReady(deviceName, isBackup);
-                using (DeviceThread device = new DeviceThread())
+                if (args.Length == 0)
                 {
-                    using (SqlThread sql = new SqlThread())
+                    Console.WriteLine("For help, type 'msbp.exe help'");
+                }
+                else
+                {
+                    switch (args[0].ToLowerInvariant())
                     {
-                        sql.PreConnect(databaseName, deviceName, isBackup);
-                        device.PreConnect(isBackup, deviceName, filename, pipelineConfig);
-                        device.ConnectInAnoterThread();
-                        sql.ConnectInAnoterThread();
-                        Exception e = sql.WaitForCompletion();
-                        if (e != null)
-                        {
-                            Console.WriteLine(e.Message);
-                            //Console.WriteLine(e.StackTrace);
-                        }
+                        case "help":
+                            PrintUsage();
+                            break;
 
-                        e = device.WaitForCompletion();
-                        if (e != null)
-                        {
-                            Console.WriteLine(e.Message);
-                            //Console.WriteLine(e.StackTrace);
-                        }
+                        case "backup":
+                            {
+                                ConfigPair destinationConfig;
+                                ConfigPair databaseConfig;
+                                bool isBackup = true;
+
+                                List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, destinationComponents, out databaseConfig, out destinationConfig);
+
+
+                                BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
+                            }
+                            break;
+
+                        case "restore":
+                            {
+                                ConfigPair destinationConfig;
+                                ConfigPair databaseConfig;
+
+                                bool isBackup = false;
+
+                                List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, destinationComponents, out databaseConfig, out destinationConfig);
+
+                                BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
+                            }
+                            break;
+                        default:
+                            Console.WriteLine(string.Format("Unknown command: {0}", args[1]));
+                            break;
                     }
                 }
             }
@@ -97,42 +111,64 @@ namespace MSSQLBackupPipe
 
         }
 
+        private static List<string> CopySubArgs(string[] args)
+        {
+            List<string> result = new List<string>(args.Length - 2);
+            for (int i = 1; i < args.Length; i++)
+            {
+                result.Add(args[i]);
+            }
+            return result;
+        }
+
+        private static void BackupOrRestore(bool isBackup, ConfigPair destConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig)
+        {
+
+            string deviceName = Guid.NewGuid().ToString();
+
+            IBackupDestination dest = destConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupDestination;
+            IBackupDatabase databaseComp = databaseConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupDatabase;
+            try
+            {
+
+                //NotifyWhenReady notifyWhenReady = new NotifyWhenReady(deviceName, isBackup);
+                using (DeviceThread device = new DeviceThread())
+                {
+                    using (SqlThread sql = new SqlThread())
+                    {
+                        string sqlStmt = isBackup ? databaseComp.GetBackupSqlStatement(databaseConfig.ConfigString, deviceName) :
+                            databaseComp.GetRestoreSqlStatement(databaseConfig.ConfigString, deviceName);
+                        sqlStmt = string.Format(sqlStmt, deviceName);
+                        sql.PreConnect(sqlStmt);
+                        device.PreConnect(isBackup, deviceName, dest, destConfig.ConfigString, pipelineConfig);
+                        device.ConnectInAnoterThread();
+                        sql.ConnectInAnoterThread();
+                        Exception e = sql.WaitForCompletion();
+                        if (e != null)
+                        {
+                            Console.WriteLine(e.Message);
+                            //Console.WriteLine(e.StackTrace);
+                        }
+
+                        e = device.WaitForCompletion();
+                        if (e != null)
+                        {
+                            Console.WriteLine(e.Message);
+                            //Console.WriteLine(e.StackTrace);
+                        }
+                    }
+                }
+            }
+            catch(Exception e)
+            {
+                dest.CleanupOnAbort();
+            }
+        }
 
 
 
-        //private class NotifyWhenReady : INotifyWhenReady
-        //{
-        //    private bool mIsBackup;
-        //    private string mDeviceName;
 
-        //    public NotifyWhenReady(string deviceName, bool isBackup)
-        //    {
-        //        mIsBackup = isBackup;
-        //        mDeviceName = deviceName;
-        //    }
-
-        //    #region INotifyWhenReady Members
-
-        //    public void Ready()
-        //    {
-        //        if (mIsBackup)
-        //        {
-        //            Console.WriteLine("Ready for backup command, like");
-        //            Console.WriteLine(string.Format("BACKUP DATABASE [database] TO VIRTUAL_DEVICE='{0}';", mDeviceName));
-        //        }
-        //        else
-        //        {
-        //            Console.WriteLine("Ready for restore command, like");
-        //            Console.WriteLine(string.Format("RESTORE DATABASE [database] FROM VIRTUAL_DEVICE='{0}';", mDeviceName));
-        //        }
-        //    }
-
-        //    #endregion
-        //}
-
-
-
-        private static Dictionary<string, Type> LoadPipelineComponents()
+        private static Dictionary<string, Type> LoadComponents(string interfaceName)
         {
             Dictionary<string, Type> result = new Dictionary<string, Type>();
 
@@ -150,7 +186,7 @@ namespace MSSQLBackupPipe
                 { }
                 if (dll != null)
                 {
-                    FindPlugins(dll, result);
+                    FindPlugins(dll, result, interfaceName);
                 }
             }
 
@@ -159,7 +195,7 @@ namespace MSSQLBackupPipe
 
 
 
-        private static void FindPlugins(Assembly dll, Dictionary<string, Type> result)
+        private static void FindPlugins(Assembly dll, Dictionary<string, Type> result, string interfaceName)
         {
             foreach (Type t in dll.GetTypes())
             {
@@ -169,9 +205,13 @@ namespace MSSQLBackupPipe
                     {
                         if (!((t.Attributes & TypeAttributes.Abstract) == TypeAttributes.Abstract))
                         {
-                            if (t.GetInterface("IBackupTransformer") != null)
+                            if (t.GetInterface(interfaceName) != null)
                             {
-                                IBackupTransformer test = t.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupTransformer;
+                                object o = t.GetConstructor(new Type[0]).Invoke(new object[0]);
+
+
+                                IBackupPlugin test = o as IBackupPlugin;
+
                                 if (test != null)
                                 {
                                     string name = test.GetName().ToLowerInvariant();
@@ -200,181 +240,134 @@ namespace MSSQLBackupPipe
 
 
 
-        private static List<ConfigPair> ParseArgs(string[] args, Dictionary<string, Type> pipelineComponents, out string databaseName, out string filename, out bool isBackup)
+        private static List<ConfigPair> ParseBackupOrRestoreArgs(List<string> args, bool isBackup, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> destinationComponents, out ConfigPair databaseConfig, out ConfigPair destinationConfig)
         {
-            bool databaseNameFound = false;
-            bool pipelineFound = false;
-            bool directionFound = false;
-
-            List<ConfigPair> pipeline = null;
-            isBackup = true;
-            databaseName = null;
-            filename = null;
-
-            int i = 0;
-            while (i < args.Length)
+            if (args.Count < 2)
             {
-                string arg = args[i];
-                switch (arg)
-                {
-                    case "--db":
-                        if (databaseNameFound)
-                        {
-                            throw new ArgumentException("The database name cannot be set twice.");
-                        }
-
-                        i++;
-                        if (i >= args.Length)
-                        {
-                            throw new ArgumentException("Please provide a database name after the --db switch.");
-                        }
-
-                        databaseName = args[i].Trim();
-                        if (databaseName.Length >= 2 && databaseName[0] == '[' && databaseName[databaseName.Length - 1] == ']')
-                        {
-                            databaseName = databaseName.Substring(1, databaseName.Length - 2);
-                        }
-
-                        databaseNameFound = true;
-                        break;
-
-                    case "-p":
-                        if (pipelineFound)
-                        {
-                            throw new ArgumentException("The pipeline cannot be set twice.");
-                        }
-
-                        i++;
-                        if (i >= args.Length)
-                        {
-                            pipeline = new List<ConfigPair>(0);
-                        }
-                        else
-                        {
-                            pipeline = BuildPipelineFromString(args[i], pipelineComponents, out filename);
-                        }
-
-
-                        pipelineFound = true;
-                        break;
-
-                    case "-b":
-                        if (directionFound)
-                        {
-                            throw new ArgumentException("The direction (backup or restore) cannot be set twice.");
-                        }
-
-                        isBackup = true;
-
-                        directionFound = true;
-                        break;
-
-                    case "-r":
-                        if (directionFound)
-                        {
-                            throw new ArgumentException("The direction (backup or restore) cannot be set twice.");
-                        }
-
-                        isBackup = false;
-
-                        directionFound = true;
-                        break;
-
-                    default:
-                        throw new ArgumentException(string.Format("Unknown switch: {0}.", args[i]));
-
-                }
-
-                i++;
+                throw new ArgumentException("Please provide both the database and destination after the backup subcommand.");
             }
 
-            if (!databaseNameFound)
+
+            string databaseArg;
+            string destinationArg;
+
+            if (isBackup)
             {
-                throw new ArgumentException("Required --db switch, database name, is missing.");
+                databaseArg = args[0];
+                destinationArg = args[args.Count - 1];
+            }
+            else
+            {
+                databaseArg = args[args.Count - 1];
+                destinationArg = args[0];
             }
 
-            if (!pipelineFound)
+
+            if (databaseArg.Contains("://"))
             {
-                throw new ArgumentException("Required -p switch, pipeline, is missing.");
+                throw new ArgumentException("The first sub argument must be the name of the database.");
             }
 
-            if (!directionFound)
+            if (databaseArg[0] == '[' && databaseArg[databaseArg.Length - 1] == ']')
             {
-                throw new ArgumentException("You must provide either a -b or -r switch to indicate if this is for backup or restore.");
+                databaseArg = string.Format("db(database={0})", databaseArg.Substring(1, databaseArg.Length - 2));
             }
+
+            databaseConfig = FindConfigPair(databaseComponents, databaseArg);
+
+
+
+            if (destinationArg[0] == '[' && destinationArg[databaseArg.Length - 1] == ']')
+            {
+                throw new ArgumentException("The last sub argument must be the destination.");
+            }
+
+            if (destinationArg.StartsWith("file://"))
+            {
+                Uri uri = new Uri(destinationArg);
+                destinationArg = string.Format("local(path={0})", uri.LocalPath);
+            }
+
+
+            destinationConfig = FindConfigPair(destinationComponents, destinationArg);
+
+
+
+            List<string> pipelineArgs = new List<string>();
+            for (int i = 1; i < args.Count - 1; i++)
+            {
+                pipelineArgs.Add(args[i]);
+            }
+
+
+            List<ConfigPair> pipeline = BuildPipelineFromString(pipelineArgs, pipelineComponents);
+
 
             return pipeline;
         }
 
 
 
-        private static List<ConfigPair> BuildPipelineFromString(string pipelineString, Dictionary<string, Type> pipelineComponents, out string filename)
-        {
-            string[] components = pipelineString.Split('|');
 
-            for (int i = 0; i < components.Length; i++)
+
+        private static List<ConfigPair> BuildPipelineFromString(List<string> pipelineArgs, Dictionary<string, Type> pipelineComponents)
+        {
+
+            for (int i = 0; i < pipelineArgs.Count; i++)
             {
-                components[i] = components[i].Trim();
+                pipelineArgs[i] = pipelineArgs[i].Trim();
             }
 
-            List<ConfigPair> results = new List<ConfigPair>(components.Length);
+            List<ConfigPair> results = new List<ConfigPair>(pipelineArgs.Count);
 
-            for (int i = 0; i < components.Length - 1; i++)
+            foreach (string componentString in pipelineArgs)
             {
-                string componentString = components[i];
-
-                ConfigPair config = new ConfigPair();
-
-                string componentName;
-                string configString;
-
-                int pPos = componentString.IndexOf('(');
-                if (pPos < 0)
-                {
-                    componentName = componentString;
-                    configString = "";
-                }
-                else
-                {
-                    componentName = componentString.Substring(0, pPos).Trim();
-
-                    if (componentString.Substring(componentString.Length - 1, 1) != ")")
-                    {
-                        throw new ArgumentException(string.Format("Invalid pipeline.  The closing parenthesis not found: {0}", componentString));
-                    }
-
-                    configString = componentString.Substring(pPos + 1, componentString.Length - pPos - 2);
-                }
-
-                Type foundType;
-                if (pipelineComponents.TryGetValue(componentName.ToLowerInvariant(), out foundType))
-                {
-                    config.ConfigString = configString;
-                    config.TransformationType = foundType;
-                }
-                else
-                {
-                    throw new ArgumentException(string.Format("Plugin not found: {0}", componentName));
-                }
+                ConfigPair config = FindConfigPair(pipelineComponents, componentString);
 
                 results.Add(config);
-
             }
-
-            // the last entry must be the destination file in the format: file://c:\etc
-
-            string destFileName = components[components.Length - 1];
-            Uri destUri = new Uri(destFileName);
-            if (!destUri.IsFile)
-            {
-                throw new ArgumentException(string.Format("The destination must be a file starting with file://: {0}", destFileName));
-            }
-
-            filename = destUri.LocalPath;
-
 
 
             return results;
+        }
+
+        private static ConfigPair FindConfigPair(Dictionary<string, Type> pipelineComponents, string componentString)
+        {
+
+            ConfigPair config = new ConfigPair();
+
+            string componentName;
+            string configString;
+
+            int pPos = componentString.IndexOf('(');
+            if (pPos < 0)
+            {
+                componentName = componentString;
+                configString = "";
+            }
+            else
+            {
+                componentName = componentString.Substring(0, pPos).Trim();
+
+                if (componentString.Substring(componentString.Length - 1, 1) != ")")
+                {
+                    throw new ArgumentException(string.Format("Invalid pipeline.  The closing parenthesis not found: {0}", componentString));
+                }
+
+                configString = componentString.Substring(pPos + 1, componentString.Length - pPos - 2);
+            }
+
+            Type foundType;
+            if (pipelineComponents.TryGetValue(componentName.ToLowerInvariant(), out foundType))
+            {
+                config.ConfigString = configString;
+                config.TransformationType = foundType;
+            }
+            else
+            {
+                throw new ArgumentException(string.Format("Plugin not found: {0}", componentName));
+            }
+            return config;
         }
 
 

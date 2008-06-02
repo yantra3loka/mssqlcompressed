@@ -1,3 +1,23 @@
+/*
+	Copyright 2008 Clay Lenhart <clay@lenharts.net>
+
+
+	This file is part of MSSQL Compressed Backup.
+
+    MSSQL Compressed Backup is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Foobar is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -14,16 +34,12 @@ namespace MSSQLBackupPipe
         private Exception mException;
         private SqlConnection mCnn;
         private bool mDisposed;
-        private string mDeviceName;
-        private bool mIsBackup;
-        private string mDatabaseName;
+        private string mSqlStatement;
         private bool mCompletedSuccessfully;
 
-        public void PreConnect(string databaseName, string deviceName, bool isBackup)
+        public void PreConnect(string sqlStatement)
         {
-            mDeviceName = deviceName;
-            mIsBackup = isBackup;
-            mDatabaseName = databaseName;
+            mSqlStatement = sqlStatement;
             mCnn = new SqlConnection("Data Source=.;Initial Catalog=master;Integrated Security=SSPI;");
             mCnn.Open();
         }
@@ -44,25 +60,15 @@ namespace MSSQLBackupPipe
         {
             try
             {
-                string sql;
-                if (mIsBackup)
-                {
-                    sql = "BACKUP DATABASE [{0}] TO VIRTUAL_DEVICE='{1}';";
-                }
-                else
-                {
-                    sql = "RESTORE DATABASE [{0}] FROM VIRTUAL_DEVICE='{1}';";
-                }
-                sql = string.Format(sql, mDatabaseName, mDeviceName);
 
-                using (SqlCommand cmd = new SqlCommand(sql))
+                using (SqlCommand cmd = new SqlCommand(mSqlStatement))
                 {
                     cmd.CommandTimeout = 0;
                     cmd.Connection = mCnn;
                     cmd.CommandType = CommandType.Text;
 
                     Console.WriteLine("Executing:");
-                    Console.WriteLine(sql);
+                    Console.WriteLine(mSqlStatement);
 
                     cmd.ExecuteNonQuery();
                 }
@@ -91,7 +97,11 @@ namespace MSSQLBackupPipe
             {
                 if (disposing)
                 {
-                    mCnn.Dispose();
+                    if (mCnn != null)
+                    {
+                        mCnn.Dispose();
+                    }
+                    mCnn = null;
                 }
 
                 // There are no unmanaged resources to release, but

@@ -32,7 +32,7 @@ namespace MSSQLBackupPipe.StdPlugins
     {
         #region IBackupTransformer Members
 
-        Stream IBackupTransformer.GetBackupWriter(string config, Stream writeToStream)
+        public Stream GetBackupWriter(string config, Stream writeToStream)
         {
             Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
 
@@ -54,12 +54,12 @@ namespace MSSQLBackupPipe.StdPlugins
             return new OneFileZipOutputStream(filename, level, writeToStream);
         }
 
-        string IBackupTransformer.GetName()
+        public string GetName()
         {
             return "zip64";
         }
 
-        Stream IBackupTransformer.GetRestoreReader(string config, Stream readFromStream)
+        public Stream GetRestoreReader(string config, Stream readFromStream)
         {
             Console.WriteLine(string.Format("Zip64Transform"));
 

@@ -34,15 +34,21 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BzipTransform.cs" />
     <Compile Include="ConfigUtil.cs" />
-    <Compile Include="GzipTransform.cs" />
+    <Compile Include="Database\DatabaseSource.cs" />
+    <Compile Include="Destination\LocalDestination.cs" />
+    <Compile Include="IBackupDatabase.cs" />
+    <Compile Include="IBackupDestination.cs" />
+    <Compile Include="IBackupPlugin.cs" />
     <Compile Include="IBackupTransformer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Zip64Transform.cs" />
+    <Compile Include="Transform\BzipTransform.cs" />
+    <Compile Include="Transform\GzipTransform.cs" />
+    <Compile Include="Transform\Zip64Transform.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ICSharpCode.SharpZipLib.dll" />
+    <None Include="ICSharpCode.SharpZipLib.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
