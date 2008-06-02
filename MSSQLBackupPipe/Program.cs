@@ -61,14 +61,14 @@ namespace MSSQLBackupPipe
                         if (e != null)
                         {
                             Console.WriteLine(e.Message);
-                            Console.WriteLine(e.StackTrace);
+                            //Console.WriteLine(e.StackTrace);
                         }
 
                         e = device.WaitForCompletion();
                         if (e != null)
                         {
                             Console.WriteLine(e.Message);
-                            Console.WriteLine(e.StackTrace);
+                            //Console.WriteLine(e.StackTrace);
                         }
                     }
                 }

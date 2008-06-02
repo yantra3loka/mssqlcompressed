@@ -47,7 +47,7 @@ namespace MSSQLBackupPipe.StdPlugins
 
             parsedConfig.TryGetValue("filename", out filename);
 
-            Console.WriteLine(string.Format("ZipTransform: level = {0}, filename={1}", level, filename));
+            Console.WriteLine(string.Format("Zip64Transform: level = {0}, filename={1}", level, filename));
 
 
 
@@ -61,6 +61,8 @@ namespace MSSQLBackupPipe.StdPlugins
 
         Stream IBackupTransformer.GetRestoreReader(string config, Stream readFromStream)
         {
+            Console.WriteLine(string.Format("Zip64Transform"));
+
             return new FirstFileZipInputStream(readFromStream);
         }
 

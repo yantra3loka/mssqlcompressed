@@ -56,6 +56,8 @@ namespace MSSQLBackupPipe.StdPlugins
 
         Stream IBackupTransformer.GetRestoreReader(string config, Stream readFromStream)
         {
+            Console.WriteLine(string.Format("BzipTransform"));
+
             return new BZip2InputStream(readFromStream);
         }
 
