@@ -45,9 +45,12 @@ namespace MSSQLBackupPipe.StdPlugins
                 int.TryParse(sLevel, out level);
             }
 
-            parsedConfig.TryGetValue("filename", out filename);
+            if (parsedConfig.ContainsKey("filename"))
+            {
+                filename = parsedConfig["filename"];
+            }
 
-            Console.WriteLine(string.Format("Zip64Transform: level = {0}, filename={1}", level, filename));
+            Console.WriteLine(string.Format("zip64: level = {0}, filename={1}", level, filename));
 
 
 
@@ -61,7 +64,7 @@ namespace MSSQLBackupPipe.StdPlugins
 
         public Stream GetRestoreReader(string config, Stream readFromStream)
         {
-            Console.WriteLine(string.Format("Zip64Transform"));
+            Console.WriteLine(string.Format("zip64"));
 
             return new FirstFileZipInputStream(readFromStream);
         }
@@ -139,7 +142,7 @@ namespace MSSQLBackupPipe.StdPlugins
                     throw new NullReferenceException("The zip file is empty.");
                 }
 
-                
+
 
 
                 mDisposed = false;
@@ -176,5 +179,5 @@ namespace MSSQLBackupPipe.StdPlugins
 
 
 
-    
+
 }

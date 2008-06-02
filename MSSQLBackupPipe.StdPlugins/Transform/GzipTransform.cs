@@ -44,7 +44,7 @@ namespace MSSQLBackupPipe.StdPlugins
                 int.TryParse(sLevel, out level);
             }
 
-            Console.WriteLine(string.Format("GzipTransform: level = {0}", level));
+            Console.WriteLine(string.Format("gzip: level = {0}", level));
 
             return new GZipOutputStream(writeToStream, level);
         }
@@ -56,7 +56,7 @@ namespace MSSQLBackupPipe.StdPlugins
 
         public Stream GetRestoreReader(string config, Stream readFromStream)
         {
-            Console.WriteLine(string.Format("GzipTransform"));
+            Console.WriteLine(string.Format("gzip"));
 
             return new GZipInputStream(readFromStream);
         }

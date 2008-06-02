@@ -34,21 +34,24 @@ namespace MSSQLBackupPipe.StdPlugins
 
             foreach (string pair in pairs)
             {
-                string[] nameValue = pair.Split(new char[] {'='}, 2);
-                string name = nameValue[0].Trim();
-                string val = nameValue.Length > 1 ? nameValue[1].Trim() : null;
+                if (!string.IsNullOrEmpty(pair))
+                {
 
-                name = name.Replace("\\s", ";");
-                name = name.Replace("\\p", "|");
-                name = name.Replace("\\\\", "\\");
+                    string[] nameValue = pair.Split(new char[] { '=' }, 2);
+                    string name = nameValue[0].Trim();
+                    string val = nameValue.Length > 1 ? nameValue[1].Trim() : null;
 
-                val = val.Replace("\\s", ";");
-                val = val.Replace("\\p", "|");
-                val = val.Replace("\\\\", "\\");
+                    name = name.Replace("\\s", ";");
+                    name = name.Replace("\\p", "|");
+                    name = name.Replace("\\\\", "\\");
+
+                    val = val.Replace("\\s", ";");
+                    val = val.Replace("\\p", "|");
+                    val = val.Replace("\\\\", "\\");
 
 
-                result.Add(name, val);
-
+                    result.Add(name, val);
+                }
             }
 
             return result;

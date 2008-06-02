@@ -5,7 +5,7 @@ using System.IO;
 
 namespace MSSQLBackupPipe.StdPlugins.Destination
 {
-    public class LocalDestination:IBackupDestination
+    public class LocalDestination : IBackupDestination
     {
         private bool mDeleteOnAbort;
         private FileInfo mFileInfoToDeleteOnAbort;
@@ -38,6 +38,8 @@ namespace MSSQLBackupPipe.StdPlugins.Destination
                 mFileInfoToDeleteOnAbort = fileInfo;
             }
 
+            Console.WriteLine(string.Format("local: path={0}", fileInfo.FullName));
+
             return fileInfo.Open(FileMode.Create);
         }
 
@@ -53,7 +55,10 @@ namespace MSSQLBackupPipe.StdPlugins.Destination
                 throw new ArgumentException("The path property is required.");
             }
 
-            return new FileStream(parsedConfig["path"], FileMode.Open);
+            FileInfo fileInfo = new FileInfo(parsedConfig["path"]);
+            Console.WriteLine(string.Format("local: path={0}", fileInfo.FullName));
+
+            return fileInfo.Open(FileMode.Open);
         }
 
         public string GetConfigHelp()
