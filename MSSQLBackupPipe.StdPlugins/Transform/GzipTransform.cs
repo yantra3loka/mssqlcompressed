@@ -63,9 +63,14 @@ namespace MSSQLBackupPipe.StdPlugins
 
         public string GetConfigHelp()
         {
-            //TODO: GetConfigHelp
-            return @"";
+            return @"gzip Usage:
+gzip will compress (or uncompress) the data.
+By default gzip compresses with level=9.  You use a level from 1 to 9, for 
+example:
+    gzip(level=5)
+Level is ignored when restoring a database since the data is being uncompressed.";
         }
+
 
         #endregion
     }

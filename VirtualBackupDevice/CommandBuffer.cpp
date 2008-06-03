@@ -23,7 +23,6 @@
 #include "CommandBuffer.h"
 
 #include "BackupDevice.h"
-#include "IBackupTransformer.h"
 
 using namespace System;
 using namespace System::Runtime::InteropServices;

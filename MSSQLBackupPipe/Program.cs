@@ -53,7 +53,28 @@ namespace MSSQLBackupPipe
                     switch (args[0].ToLowerInvariant())
                     {
                         case "help":
-                            PrintUsage();
+
+                            if (args.Length == 1)
+                            {
+                                PrintUsage();
+                            }
+                            else
+                            {
+                                switch (args[1].ToLowerInvariant())
+                                {
+                                    case "backup":
+                                        PrintBackupUsage();
+                                        break;
+                                    case "restore":
+                                        PrintRestoreUsage();
+                                        break;
+                                    default:
+                                        Console.WriteLine(string.Format("Command doesn't exist: {0}", args[1]));
+                                        PrintUsage();
+                                        break;
+                                }
+
+                            }
                             break;
 
                         case "backup":
@@ -81,8 +102,22 @@ namespace MSSQLBackupPipe
                                 BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
                             }
                             break;
+                        case "listplugins":
+                            PrintPlugins(pipelineComponents, databaseComponents, destinationComponents);
+                            break;
+                        case "helpplugin":
+                            if (args.Length < 2)
+                            {
+                                Console.WriteLine("Please give a plugin name, like msbp.exe helpplugin <plugin>");
+                            }
+                            else
+                            {
+                                PrintPluginHelp(args[1], pipelineComponents, databaseComponents, destinationComponents);
+                            }
+                            break;
                         default:
-                            Console.WriteLine(string.Format("Unknown command: {0}", args[1]));
+                            Console.WriteLine(string.Format("Unknown command: {0}", args[0]));
+                            PrintUsage();
                             break;
                     }
                 }
@@ -159,7 +194,7 @@ namespace MSSQLBackupPipe
                     }
                 }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 dest.CleanupOnAbort();
             }
@@ -373,7 +408,74 @@ namespace MSSQLBackupPipe
 
         private static void PrintUsage()
         {
-            //TODO: PrintUsage
+            Console.WriteLine("Below are the command for msbp.exe:");
+            Console.WriteLine("\tmsbp.exe help");
+            Console.WriteLine("\tmsbp.exe backup");
+            Console.WriteLine("\tmsbp.exe restore");
+            Console.WriteLine("");
+            Console.WriteLine("For more information, type msbp.exe help <command>");
         }
+
+        private static void PrintBackupUsage()
+        {
+            Console.WriteLine("To backup a database, the first parameter must be the database in brackets, and the last parameter must be the file.  The middle parameters can modify the data, for example compressing it.");
+            Console.WriteLine("To backup to a standard *.bak file:");
+            Console.WriteLine("\tmsbp.exe backup [model] file:///c:\\model.bak");
+            Console.WriteLine("To compress the backup file using gzip:");
+            Console.WriteLine("\tmsbp.exe backup [model] gzip file:///c:\\model.bak.gz");
+            Console.WriteLine("");
+            Console.WriteLine("For more information on the different pipline options, type msbp.exe listplugins");
+        }
+
+        private static void PrintRestoreUsage()
+        {
+            Console.WriteLine("To restore a database, the first parameter must be the file, and the last parameter must be the database in brackets.  The middle parameters can modify the data, for example uncompressing it.");
+            Console.WriteLine("To restore to a standard *.bak file:");
+            Console.WriteLine("\tmsbp.exe restore file:///c:\\model.bak [model]");
+            Console.WriteLine("To compress the backup file using gzip:");
+            Console.WriteLine("\tmsbp.exe restore file:///c:\\model.bak.gz gzip [model]");
+            Console.WriteLine("");
+            Console.WriteLine("For more information on the different pipline options, type msbp.exe listplugins");
+        }
+
+
+        private static void PrintPlugins(Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> destinationComponents)
+        {
+            Console.WriteLine("Database plugins:");
+            PrintComponents(databaseComponents);
+            Console.WriteLine("Pipeline plugins:");
+            PrintComponents(pipelineComponents);
+            Console.WriteLine("Destination plugins:");
+            PrintComponents(destinationComponents);
+
+            Console.WriteLine("");
+            Console.WriteLine("To find more information about a plugin, type msbp.exe helpplugin <plugin>");
+        }
+
+        private static void PrintComponents(Dictionary<string, Type> components)
+        {
+            foreach (string key in components.Keys)
+            {
+                IBackupPlugin db = components[key].GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupPlugin;
+                Console.WriteLine("\t" + db.GetName());
+            }
+        }
+
+        private static void PrintPluginHelp(string pluginName, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> destinationComponents)
+        {
+            PrintPluginHelp(pluginName, databaseComponents);
+            PrintPluginHelp(pluginName, pipelineComponents);
+            PrintPluginHelp(pluginName, destinationComponents);
+        }
+
+        private static void PrintPluginHelp(string pluginName, Dictionary<string, Type> components)
+        {
+            if (components.ContainsKey(pluginName))
+            {
+                IBackupPlugin db = components[pluginName].GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupPlugin;
+                Console.WriteLine(db.GetConfigHelp());
+            }
+        }
+
     }
 }

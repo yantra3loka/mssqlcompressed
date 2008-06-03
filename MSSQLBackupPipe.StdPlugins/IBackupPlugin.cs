@@ -7,5 +7,6 @@ namespace MSSQLBackupPipe.StdPlugins
     public interface IBackupPlugin
     {
         string GetName();
+        string GetConfigHelp();
     }
 }

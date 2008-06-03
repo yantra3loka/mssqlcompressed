@@ -64,8 +64,12 @@ namespace MSSQLBackupPipe.StdPlugins
 
         public string GetConfigHelp()
         {
-            //TODO: GetConfigHelp
-            return @"";
+            return @"bzip2 Usage:
+bzip2 will compress (or uncompress) the data.
+By default bzip2 compresses with level=1.  You use a level from 1 to 9, for 
+example:
+    bzip(level=5)
+Level is ignored when restoring a database since the data is being uncompressed.";
         }
 
         #endregion

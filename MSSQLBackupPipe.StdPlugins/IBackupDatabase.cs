@@ -28,7 +28,6 @@ namespace MSSQLBackupPipe.StdPlugins
     {
         string GetBackupSqlStatement(string config, string device);
         string GetRestoreSqlStatement(string config, string device);
-        string GetConfigHelp();
 
     }
 }

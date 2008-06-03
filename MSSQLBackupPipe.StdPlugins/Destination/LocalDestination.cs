@@ -63,7 +63,15 @@ namespace MSSQLBackupPipe.StdPlugins.Destination
 
         public string GetConfigHelp()
         {
-            throw new Exception("The method or operation is not implemented.");
+            return @"local Usage:
+This is a plugin to store or read a backup file.
+To reference a file, enter:
+local(path=<file>)
+
+msbp.exe has an alias for the local plugin.  If it begins with file://, it is
+converted to the 'local' plugin equivalent.  file:///c:\model.bak is converted
+to local(path=c:\model.bak).
+";
         }
 
         public void CleanupOnAbort()

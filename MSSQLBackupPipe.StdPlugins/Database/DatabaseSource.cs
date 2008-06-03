@@ -58,8 +58,19 @@ namespace MSSQLBackupPipe.StdPlugins.Database
 
         public string GetConfigHelp()
         {
-            throw new Exception("The method or operation is not implemented.");
-        }
+            return @"db Usage:
+    db(database=<dbname>)
+<dbname> should be the database name without any brackets.
+or
+    db(sql=<sql>)
+<sql> should be the SQL command to backup or restore where {0} will be replaced by the dynamically generated device name.  By default, the backup command is:
+    BACKUP DATABASE [<dbname>] TO VIRTUAL_DEVICE='{0}';
+And the restore command is:
+    RESTORE DATABASE [<dbname>] FROM VIRTUAL_DEVICE='{0}';
+These gives the ability to add options to the BACKUP or RESTORE command, like
+'WITH MOVE'.
+msbp.exe has an alias for the db plugin.  A database name in brackets, like [model] is converted to db(database=model).";
+}
 
         #endregion
     }

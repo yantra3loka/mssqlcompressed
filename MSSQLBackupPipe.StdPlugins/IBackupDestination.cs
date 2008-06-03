@@ -29,7 +29,6 @@ namespace MSSQLBackupPipe.StdPlugins
     {
         Stream GetBackupWriter(string config);
         Stream GetRestoreReader(string config);
-        string GetConfigHelp();
         void CleanupOnAbort();
 
     }

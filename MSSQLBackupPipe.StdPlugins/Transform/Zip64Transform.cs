@@ -64,15 +64,42 @@ namespace MSSQLBackupPipe.StdPlugins
 
         public Stream GetRestoreReader(string config, Stream readFromStream)
         {
+            Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
+
+            string filename = null;
+            if (parsedConfig.ContainsKey("filename"))
+            {
+                filename = parsedConfig["filename"];
+            }
+
+
             Console.WriteLine(string.Format("zip64"));
 
-            return new FirstFileZipInputStream(readFromStream);
+            if (filename == null)
+            {
+                return new FirstFileZipInputStream(readFromStream);
+            }
+            else
+            {
+                return new FindFileZipInputStream(readFromStream, filename);
+            }
         }
 
         public string GetConfigHelp()
         {
-            //TODO: GetConfigHelp
-            return @"";
+            return @"zip64 Usage:
+zip64 will compress (or uncompress) the data.
+By default zip64 compresses with level=7, and the internal filename is 
+database.bak.  You use a level from 1 to 9, for 
+example:
+    zip64(level=5)
+and an internal filename like:
+    zip64(level=5;filename=model.bak)
+Level is ignored when restoring a database since the data is being uncompressed.
+zip64 creates a zip file in the new zip64 format to overcome 4 GB uncompressed
+file limitation.
+";
+
         }
 
         #endregion
@@ -140,6 +167,62 @@ namespace MSSQLBackupPipe.StdPlugins
                 if (entry == null)
                 {
                     throw new NullReferenceException("The zip file is empty.");
+                }
+
+
+
+
+                mDisposed = false;
+            }
+
+
+            protected override void Dispose(bool disposing)
+            {
+                if (!mDisposed)
+                {
+                    if (disposing)
+                    {
+                        base.Close();
+                        // dispose of managed resources
+
+                    }
+
+                    // There are no unmanaged resources to release, but
+                    // if we add them, they need to be released here.
+                }
+                mDisposed = true;
+
+                // If it is available, make the call to the
+                // base class's Dispose(Boolean) method
+                base.Dispose(disposing);
+
+            }
+
+
+
+        }
+
+
+
+
+        private class FindFileZipInputStream : ZipInputStream
+        {
+            private bool mDisposed;
+            public FindFileZipInputStream(Stream readFromStream, string filename)
+                : base(readFromStream)
+            {
+
+                base.IsStreamOwner = true;
+
+                ZipEntry entry = base.GetNextEntry();
+                while (!entry.IsFile || entry.Name != filename)
+                {
+                    entry = base.GetNextEntry();
+                }
+
+                if (entry == null)
+                {
+                    throw new NullReferenceException("The zip file not found.");
                 }
 
 
