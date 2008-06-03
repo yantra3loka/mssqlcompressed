@@ -115,6 +115,10 @@ namespace MSSQLBackupPipe
                                 PrintPluginHelp(args[1], pipelineComponents, databaseComponents, destinationComponents);
                             }
                             break;
+                        case "version":
+                            Version version = Assembly.GetEntryAssembly().GetName().Version;
+                            Console.WriteLine(string.Format("v{0} ({1:yyyy MMM dd})", version, (new DateTime(2000, 1, 1)).AddDays(version.Build)));
+                            break;
                         default:
                             Console.WriteLine(string.Format("Unknown command: {0}", args[0]));
                             PrintUsage();
@@ -412,6 +416,9 @@ namespace MSSQLBackupPipe
             Console.WriteLine("\tmsbp.exe help");
             Console.WriteLine("\tmsbp.exe backup");
             Console.WriteLine("\tmsbp.exe restore");
+            Console.WriteLine("\tmsbp.exe listplugins");
+            Console.WriteLine("\tmsbp.exe helpplugin");
+            Console.WriteLine("\tmsbp.exe version");
             Console.WriteLine("");
             Console.WriteLine("For more information, type msbp.exe help <command>");
         }
