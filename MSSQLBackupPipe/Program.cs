@@ -68,6 +68,16 @@ namespace MSSQLBackupPipe
                                     case "restore":
                                         PrintRestoreUsage();
                                         break;
+                                    case "listplugins":
+                                        Console.WriteLine("Lists the plugins available.  Go on, try it.");
+                                        break;
+                                    case "helpplugin":
+                                        Console.WriteLine("Displays a plugin's help text. For example:");
+                                        Console.WriteLine("\tmsbp.exe helpplugin gzip");
+                                        break;
+                                    case "version":
+                                        Console.WriteLine("Displays the version number.");
+                                        break;
                                     default:
                                         Console.WriteLine(string.Format("Command doesn't exist: {0}", args[1]));
                                         PrintUsage();
@@ -412,7 +422,7 @@ namespace MSSQLBackupPipe
 
         private static void PrintUsage()
         {
-            Console.WriteLine("Below are the command for msbp.exe:");
+            Console.WriteLine("Below are the commands for msbp.exe:");
             Console.WriteLine("\tmsbp.exe help");
             Console.WriteLine("\tmsbp.exe backup");
             Console.WriteLine("\tmsbp.exe restore");

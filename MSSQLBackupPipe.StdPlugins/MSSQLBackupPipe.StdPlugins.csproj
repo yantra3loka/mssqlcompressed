@@ -9,6 +9,8 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>MSSQLBackupPipe.StdPlugins</RootNamespace>
     <AssemblyName>MSSQLBackupPipe.StdPlugins</AssemblyName>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>MSSQLCompressedBackup.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -50,6 +52,7 @@
   <ItemGroup>
     <Content Include="ICSharpCode.SharpZipLib.dll" />
     <None Include="ICSharpCode.SharpZipLib.txt" />
+    <None Include="MSSQLCompressedBackup.snk" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
