@@ -127,7 +127,8 @@ namespace MSSQLBackupPipe
                             break;
                         case "version":
                             Version version = Assembly.GetEntryAssembly().GetName().Version;
-                            Console.WriteLine(string.Format("v{0} ({1:yyyy MMM dd})", version, (new DateTime(2000, 1, 1)).AddDays(version.Build)));
+                            ProcessorArchitecture arch = typeof(VirtualBackupDevice.BackupDevice).Assembly.GetName().ProcessorArchitecture;
+                            Console.WriteLine(string.Format("v{0} {1} ({2:yyyy MMM dd})", version, arch, (new DateTime(2000, 1, 1)).AddDays(version.Build)));
                             break;
                         default:
                             Console.WriteLine(string.Format("Unknown command: {0}", args[0]));
