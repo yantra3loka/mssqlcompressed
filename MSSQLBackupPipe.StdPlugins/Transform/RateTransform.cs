@@ -101,14 +101,29 @@ You can slow down the pipeline to ensure the server is not overloaded.  Enter a 
                 }
             }
 
-            public override int Read(byte[] buffer, int offset, int count)
+            private void Wait(int count)
             {
-                while (mNextStartTimeUtc > DateTime.UtcNow)
+                DateTime utcNow = DateTime.UtcNow;
+                while (mNextStartTimeUtc > utcNow)
                 {
-                    System.Threading.Thread.Sleep(mNextStartTimeUtc - DateTime.UtcNow);
+                    System.Threading.Thread.Sleep(mNextStartTimeUtc - utcNow);
+
+                    utcNow = DateTime.UtcNow;
                 }
 
-                mNextStartTimeUtc = DateTime.UtcNow.AddSeconds(((double)count) / mRateMB / (1024 * 1024));
+                mNextStartTimeUtc = mNextStartTimeUtc.AddSeconds(((double)count) / mRateMB / (1024 * 1024));
+
+                // only allow a 0.5 second burst
+                DateTime minStartTime = DateTime.UtcNow.AddMilliseconds(-500);
+                if (mNextStartTimeUtc < minStartTime)
+                {
+                    mNextStartTimeUtc = minStartTime;
+                }
+            }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                Wait(count);
 
                 return mStream.Read(buffer, offset, count);
 
@@ -126,14 +141,8 @@ You can slow down the pipeline to ensure the server is not overloaded.  Enter a 
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                while (mNextStartTimeUtc > DateTime.UtcNow)
-                {
-                    System.Threading.Thread.Sleep(mNextStartTimeUtc - DateTime.UtcNow);
-                }
-
+                Wait(count);
                 mStream.Write(buffer, offset, count);
-
-                mNextStartTimeUtc = DateTime.UtcNow.AddSeconds(((double)count) / mRateMB / (1024 * 1024));
             }
 
             protected override void Dispose(bool disposing)
