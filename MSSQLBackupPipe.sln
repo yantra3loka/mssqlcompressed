@@ -19,6 +19,15 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualBackupDevice", "Virt
 		Release.AspNetCompiler.Debug = "False"
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleasePackaging", "ReleasePackaging\ReleasePackaging.csproj", "{9C8081AF-4FB8-4A85-B205-C385BCC36E01}"
+	ProjectSection(WebsiteProperties) = preProject
+		Debug.AspNetCompiler.Debug = "True"
+		Release.AspNetCompiler.Debug = "False"
+	EndProjectSection
+	ProjectSection(ProjectDependencies) = postProject
+		{64799887-2FDF-4B40-8757-7B2E4B0F735D} = {64799887-2FDF-4B40-8757-7B2E4B0F735D}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -77,6 +86,17 @@ Global
 		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Release|Win32.Build.0 = Release|Win32
 		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Release|x64.ActiveCfg = Release|x64
 		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Release|x64.Build.0 = Release|x64
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Debug|Mixed Platforms.ActiveCfg = Debug|x64
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Debug|Mixed Platforms.Build.0 = Debug|x64
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Debug|Win32.ActiveCfg = Debug|x86
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Debug|x64.ActiveCfg = Debug|x64
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|Any CPU.ActiveCfg = Release|x64
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|Mixed Platforms.ActiveCfg = Release|x64
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|Mixed Platforms.Build.0 = Release|x64
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|Win32.ActiveCfg = Release|x86
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|x64.ActiveCfg = Release|x64
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

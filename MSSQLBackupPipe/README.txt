@@ -2,7 +2,6 @@ MSSQL Compressed Backup
 
 Getting Started:
 MSSQL Compressed Backup requires the following components to be installed before you can use it.  These are typcially installed with SQL Server 2005.
- * Visual Studio C++ DLLs from the latest service pack
  * .Net 2.0
  
 To get started, unzip the archive to a folder, open the Windows Command Prompt and type "msbp.exe help"
