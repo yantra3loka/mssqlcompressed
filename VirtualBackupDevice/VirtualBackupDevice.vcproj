@@ -61,9 +61,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="ptrustmd.lib $(NOINHERIT)"
+				AdditionalDependencies="$(NOINHERIT)"
 				LinkIncremental="2"
-				IgnoreDefaultLibraryNames="msvcmrt.lib"
+				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="true"
 				AssemblyDebug="1"
 				TargetMachine="1"
@@ -138,9 +138,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="ptrustmd.lib $(NOINHERIT)"
+				AdditionalDependencies="$(NOINHERIT)"
 				LinkIncremental="2"
-				IgnoreDefaultLibraryNames="msvcmrt.lib"
+				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="true"
 				AssemblyDebug="1"
 				TargetMachine="17"
@@ -214,9 +214,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="ptrustm.lib $(NOINHERIT)"
+				AdditionalDependencies="$(NOINHERIT)"
 				LinkIncremental="1"
-				IgnoreDefaultLibraryNames="msvcmrt.lib"
+				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="true"
 				TargetMachine="1"
 				KeyFile="$(ProjectDir)MSSQLCompressedBackup.snk"
@@ -290,9 +290,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="ptrustm.lib $(NOINHERIT)"
+				AdditionalDependencies="$(NOINHERIT)"
 				LinkIncremental="1"
-				IgnoreDefaultLibraryNames="msvcmrt.lib"
+				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="true"
 				TargetMachine="17"
 				KeyFile="$(ProjectDir)MSSQLCompressedBackup.snk"

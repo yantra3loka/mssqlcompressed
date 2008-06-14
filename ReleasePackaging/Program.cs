@@ -27,6 +27,9 @@ using ICSharpCode.SharpZipLib.Zip;
 
 namespace ReleasePackaging
 {
+    /// <summary>
+    /// Copies files needed to be packaged with the application and add them into a new zip file.
+    /// </summary>
     class Program
     {
         static int Main(string[] args)
@@ -71,7 +74,7 @@ namespace ReleasePackaging
 
 
                 string dirName = string.Format("MSSQLCompressedBackup-{3}-{1:yyyyMMdd}{2}_{0}", platformName, DateTime.UtcNow, BETA_STRING, VERSION_STRING);
-               string zipSubDirPath = dirToZip.CreateSubdirectory(dirName).FullName;
+                string zipSubDirPath = dirToZip.CreateSubdirectory(dirName).FullName;
 
 
 
@@ -82,6 +85,19 @@ namespace ReleasePackaging
                         file.CopyTo(Path.Combine(zipSubDirPath, file.Name));
                     }
                 }
+
+
+                string redistArch = platformName == "x86" ? "x86" : "amd64";
+                string redistPath = string.Format(@"C:\Program Files\Microsoft Visual Studio 8\VC\Redist\{0}\Microsoft.VC80.CRT", redistArch);
+                DirectoryInfo redistDir = new DirectoryInfo(redistPath);
+                string redistSubDirPath = new DirectoryInfo(zipSubDirPath).CreateSubdirectory("Microsoft.VC80.CRT").FullName;
+
+                foreach (FileInfo file in redistDir.GetFiles())
+                {
+                    file.CopyTo(Path.Combine(redistSubDirPath, file.Name));
+                }
+
+
 
 
                 string destFilename = dirName + ".zip";
