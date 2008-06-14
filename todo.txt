@@ -1,0 +1,22 @@
+backup from a named instance? not implemented
+Needs a completion message with stats: MB/s, MB read, MB written, compression ratio, etc
+restore on top of an existing database? no error message
+rate doesn't print out its config
+
+does it work w/ SQL express?
+does it do log backups? yes, needs documenation
+does it restore from a zip and naming the internal file? yes
+
+
+document:
+only works on the same machine as SQL Server
+how to do log backups
+
+
+roadmap:
+connect to a SQL Server named instance
+gui
+when overwriting a file, don't destroy/recreate, but overwrite in place to preserve a defraged file.
+striped backups
+threading: request the next block from SQL Server while another thread is compressing
+remove the SQL injection attack
