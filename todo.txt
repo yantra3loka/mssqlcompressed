@@ -2,6 +2,7 @@ backup from a named instance? not implemented
 Needs a completion message with stats: MB/s, MB read, MB written, compression ratio, etc
 restore on top of an existing database? no error message
 rate doesn't print out its config
+package version number does not match assembly's version number.
 
 does it work w/ SQL express?
 does it do log backups? yes, needs documenation
