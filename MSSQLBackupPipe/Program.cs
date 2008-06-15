@@ -192,11 +192,8 @@ namespace MSSQLBackupPipe
                 {
                     using (SqlThread sql = new SqlThread())
                     {
-                        string sqlStmt = isBackup ? databaseComp.GetBackupSqlStatement(databaseConfig.ConfigString, deviceName) :
-                            databaseComp.GetRestoreSqlStatement(databaseConfig.ConfigString, deviceName);
                         string instanceName = databaseComp.GetInstanceName(databaseConfig.ConfigString);
-                        sqlStmt = string.Format(sqlStmt, deviceName);
-                        sql.PreConnect(instanceName, sqlStmt);
+                        sql.PreConnect(instanceName, deviceName, databaseComp, databaseConfig.ConfigString, isBackup);
                         device.PreConnect(isBackup, instanceName, deviceName, dest, destConfig.ConfigString, pipelineConfig);
                         device.ConnectInAnoterThread();
                         sql.ConnectInAnoterThread();
@@ -235,7 +232,7 @@ namespace MSSQLBackupPipe
 
         private static Dictionary<string, Type> LoadComponents(string interfaceName)
         {
-            Dictionary<string, Type> result = new Dictionary<string, Type>();
+            Dictionary<string, Type> result = new Dictionary<string, Type>(StringComparer.InvariantCultureIgnoreCase);
 
             DirectoryInfo binDir = new FileInfo(Assembly.GetEntryAssembly().Location).Directory;
 

@@ -83,7 +83,7 @@ namespace MSSQLBackupPipe
         {
             try
             {
-                mDevice.Connect(new TimeSpan(0, 0, 30));
+                mDevice.Connect(new TimeSpan(0, 0, 10));
 
                 CommandBuffer buff = new CommandBuffer();
 

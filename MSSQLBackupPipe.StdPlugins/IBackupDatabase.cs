@@ -21,13 +21,14 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Data.SqlClient;
 
 namespace MSSQLBackupPipe.StdPlugins
 {
     public interface IBackupDatabase : IBackupPlugin
     {
-        string GetBackupSqlStatement(string config, string device);
-        string GetRestoreSqlStatement(string config, string device);
+        void ConfigureBackupCommand(string config, string device, SqlCommand cmd);
+        void ConfigureRestoreCommand(string config, string device, SqlCommand cmd);
         string GetInstanceName(string config);
     }
 }

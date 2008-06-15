@@ -25,6 +25,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Threading;
 
+using MSSQLBackupPipe.StdPlugins;
 
 namespace MSSQLBackupPipe
 {
@@ -33,15 +34,27 @@ namespace MSSQLBackupPipe
         private Thread mThread;
         private Exception mException;
         private SqlConnection mCnn;
+        private SqlCommand mCmd;
         private bool mDisposed;
-        private string mSqlStatement;
 
-        public void PreConnect(string instanceName, string sqlStatement)
-        {
-            mSqlStatement = sqlStatement;
+        public void PreConnect(string instanceName, string deviceName, IBackupDatabase dbComponent, string dbConfig, bool isBackup)
+        { 
             string dataSource = string.IsNullOrEmpty(instanceName) ? "." : string.Format(@".\{0}", instanceName);
             mCnn = new SqlConnection(string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;", dataSource));
             mCnn.Open();
+
+            mCmd = new SqlCommand();
+            mCmd.Connection = mCnn;
+            mCmd.CommandTimeout = 0;
+            if (isBackup)
+            {
+                dbComponent.ConfigureBackupCommand(dbConfig, deviceName, mCmd);
+            }
+            else
+            {
+                dbComponent.ConfigureRestoreCommand(dbConfig, deviceName, mCmd);
+            }
+
         }
         public void ConnectInAnoterThread()
         {
@@ -61,18 +74,11 @@ namespace MSSQLBackupPipe
             try
             {
 
-                using (SqlCommand cmd = new SqlCommand(mSqlStatement))
-                {
-                    cmd.CommandTimeout = 0;
-                    cmd.Connection = mCnn;
-                    cmd.CommandType = CommandType.Text;
 
+                Console.WriteLine("Executing:");
+                Console.WriteLine(mCmd.CommandText);
 
-                    Console.WriteLine("Executing:");
-                    Console.WriteLine(mSqlStatement);
-
-                    cmd.ExecuteNonQuery();
-                }
+                mCmd.ExecuteNonQuery();
 
             }
             catch (Exception e)
@@ -97,11 +103,18 @@ namespace MSSQLBackupPipe
             {
                 if (disposing)
                 {
+                    if (mCmd != null)
+                    {
+                        mCmd.Dispose();
+                    }
+                    mCmd = null;
+
                     if (mCnn != null)
                     {
                         mCnn.Dispose();
                     }
                     mCnn = null;
+
                 }
 
                 // There are no unmanaged resources to release, but
