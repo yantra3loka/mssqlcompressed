@@ -83,12 +83,10 @@ namespace MSSQLBackupPipe
                                         Console.WriteLine(string.Format("Command doesn't exist: {0}", args[1]));
                                         PrintUsage();
                                         return -1;
-                                        break;
                                 }
 
                             }
                             return 0;
-                            break;
 
                         case "backup":
                             {
@@ -100,7 +98,6 @@ namespace MSSQLBackupPipe
 
                                 return BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
                             }
-                            break;
 
                         case "restore":
                             {
@@ -113,11 +110,9 @@ namespace MSSQLBackupPipe
 
                                 return BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
                             }
-                            break;
                         case "listplugins":
                             PrintPlugins(pipelineComponents, databaseComponents, destinationComponents);
                             return 0;
-                            break;
                         case "helpplugin":
                             if (args.Length < 2)
                             {
@@ -129,18 +124,15 @@ namespace MSSQLBackupPipe
                                 return PrintPluginHelp(args[1], pipelineComponents, databaseComponents, destinationComponents);
                             }
                         
-                            break;
                         case "version":
                             Version version = Assembly.GetEntryAssembly().GetName().Version;
                             ProcessorArchitecture arch = typeof(VirtualBackupDevice.BackupDevice).Assembly.GetName().ProcessorArchitecture;
                             Console.WriteLine(string.Format("v{0} {1} ({2:yyyy MMM dd})", version, arch, (new DateTime(2000, 1, 1)).AddDays(version.Build)));
                             return 0;
-                            break;
                         default:
                             Console.WriteLine(string.Format("Unknown command: {0}", args[0]));
                             PrintUsage();
                             return -1;
-                            break;
                     }
                 }
             }
@@ -166,7 +158,6 @@ namespace MSSQLBackupPipe
                 return -1;
             }
 
-            return 0;
 
         }
 

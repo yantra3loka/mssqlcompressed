@@ -35,7 +35,6 @@ namespace MSSQLBackupPipe
         private SqlConnection mCnn;
         private bool mDisposed;
         private string mSqlStatement;
-        private bool mCompletedSuccessfully;
 
         public void PreConnect(string instanceName, string sqlStatement)
         {
@@ -75,7 +74,6 @@ namespace MSSQLBackupPipe
                     cmd.ExecuteNonQuery();
                 }
 
-                mCompletedSuccessfully = true;
             }
             catch (Exception e)
             {

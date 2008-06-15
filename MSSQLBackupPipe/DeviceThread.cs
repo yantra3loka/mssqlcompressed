@@ -39,7 +39,6 @@ namespace MSSQLBackupPipe
         private bool mIsBackup;
         //private bool mFileExistsInitially;
         //private FileInfo mFileInfo;
-        private bool mCompletedSuccessfully = false;
 
         private Thread mThread;
         private Exception mException;
@@ -99,7 +98,6 @@ namespace MSSQLBackupPipe
                 }
 
 
-                mCompletedSuccessfully = true;
             }
             catch (Exception e)
             {
