@@ -33,8 +33,9 @@ namespace MSSQLBackupPipe
 {
     class Program
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
+
             try
             {
 
@@ -47,13 +48,13 @@ namespace MSSQLBackupPipe
                 if (args.Length == 0)
                 {
                     Console.WriteLine("For help, type 'msbp.exe help'");
+                    return 0;
                 }
                 else
                 {
                     switch (args[0].ToLowerInvariant())
                     {
                         case "help":
-
                             if (args.Length == 1)
                             {
                                 PrintUsage();
@@ -81,10 +82,12 @@ namespace MSSQLBackupPipe
                                     default:
                                         Console.WriteLine(string.Format("Command doesn't exist: {0}", args[1]));
                                         PrintUsage();
+                                        return -1;
                                         break;
                                 }
 
                             }
+                            return 0;
                             break;
 
                         case "backup":
@@ -95,8 +98,7 @@ namespace MSSQLBackupPipe
 
                                 List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, destinationComponents, out databaseConfig, out destinationConfig);
 
-
-                                BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
+                                return BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
                             }
                             break;
 
@@ -109,30 +111,35 @@ namespace MSSQLBackupPipe
 
                                 List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, destinationComponents, out databaseConfig, out destinationConfig);
 
-                                BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
+                                return BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
                             }
                             break;
                         case "listplugins":
                             PrintPlugins(pipelineComponents, databaseComponents, destinationComponents);
+                            return 0;
                             break;
                         case "helpplugin":
                             if (args.Length < 2)
                             {
                                 Console.WriteLine("Please give a plugin name, like msbp.exe helpplugin <plugin>");
+                                return -1;
                             }
                             else
                             {
-                                PrintPluginHelp(args[1], pipelineComponents, databaseComponents, destinationComponents);
+                                return PrintPluginHelp(args[1], pipelineComponents, databaseComponents, destinationComponents);
                             }
+                        
                             break;
                         case "version":
                             Version version = Assembly.GetEntryAssembly().GetName().Version;
                             ProcessorArchitecture arch = typeof(VirtualBackupDevice.BackupDevice).Assembly.GetName().ProcessorArchitecture;
                             Console.WriteLine(string.Format("v{0} {1} ({2:yyyy MMM dd})", version, arch, (new DateTime(2000, 1, 1)).AddDays(version.Build)));
+                            return 0;
                             break;
                         default:
                             Console.WriteLine(string.Format("Unknown command: {0}", args[0]));
                             PrintUsage();
+                            return -1;
                             break;
                     }
                 }
@@ -156,8 +163,10 @@ namespace MSSQLBackupPipe
                 PrintUsage();
                 //             Console.WriteLine(e.StackTrace);
 
-
+                return -1;
             }
+
+            return 0;
 
         }
 
@@ -171,13 +180,19 @@ namespace MSSQLBackupPipe
             return result;
         }
 
-        private static void BackupOrRestore(bool isBackup, ConfigPair destConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig)
+        /// <summary>
+        /// returns true if successful
+        /// </summary>
+        private static int BackupOrRestore(bool isBackup, ConfigPair destConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig)
         {
 
             string deviceName = Guid.NewGuid().ToString();
 
             IBackupDestination dest = destConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupDestination;
             IBackupDatabase databaseComp = databaseConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupDatabase;
+
+            bool success = false;
+
             try
             {
 
@@ -188,31 +203,40 @@ namespace MSSQLBackupPipe
                     {
                         string sqlStmt = isBackup ? databaseComp.GetBackupSqlStatement(databaseConfig.ConfigString, deviceName) :
                             databaseComp.GetRestoreSqlStatement(databaseConfig.ConfigString, deviceName);
+                        string instanceName = databaseComp.GetInstanceName(databaseConfig.ConfigString);
                         sqlStmt = string.Format(sqlStmt, deviceName);
-                        sql.PreConnect(sqlStmt);
-                        device.PreConnect(isBackup, deviceName, dest, destConfig.ConfigString, pipelineConfig);
+                        sql.PreConnect(instanceName, sqlStmt);
+                        device.PreConnect(isBackup, instanceName, deviceName, dest, destConfig.ConfigString, pipelineConfig);
                         device.ConnectInAnoterThread();
                         sql.ConnectInAnoterThread();
-                        Exception e = sql.WaitForCompletion();
-                        if (e != null)
+                        Exception sqlE = sql.WaitForCompletion();
+                        if (sqlE != null)
                         {
-                            Console.WriteLine(e.Message);
+                            Console.WriteLine(sqlE.Message);
                             //Console.WriteLine(e.StackTrace);
                         }
 
-                        e = device.WaitForCompletion();
-                        if (e != null)
+                        Exception devE = device.WaitForCompletion();
+                        if (devE != null)
                         {
-                            Console.WriteLine(e.Message);
+                            Console.WriteLine(devE.Message);
                             //Console.WriteLine(e.StackTrace);
+                        }
+
+                        if (devE == null && sqlE == null)
+                        {
+                            success = true;
                         }
                     }
                 }
             }
             catch (Exception e)
             {
+                Console.WriteLine(e.Message);
                 dest.CleanupOnAbort();
             }
+
+            return success ? 0 : -1;
         }
 
 
@@ -479,11 +503,12 @@ namespace MSSQLBackupPipe
             }
         }
 
-        private static void PrintPluginHelp(string pluginName, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> destinationComponents)
+        private static int PrintPluginHelp(string pluginName, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> destinationComponents)
         {
             PrintPluginHelp(pluginName, databaseComponents);
             PrintPluginHelp(pluginName, pipelineComponents);
             PrintPluginHelp(pluginName, destinationComponents);
+            return 0;
         }
 
         private static void PrintPluginHelp(string pluginName, Dictionary<string, Type> components)

@@ -128,6 +128,7 @@ BackupDevice::~BackupDevice()
 
 
 	Marshal::FreeHGlobal(mDeviceName);
+	Marshal::FreeHGlobal(mInstanceName);
 
 	if (mConfig != NULL) 
 	{
@@ -140,7 +141,7 @@ BackupDevice::~BackupDevice()
 
 
 
-void BackupDevice::PreConnect(String ^deviceName)
+void BackupDevice::PreConnect(String ^instanceName, String ^deviceName)
 {
 	if (mVd != NULL || mVds != NULL)
 	{
@@ -171,8 +172,19 @@ void BackupDevice::PreConnect(String ^deviceName)
 
 
 	mDeviceName = Marshal::StringToHGlobalUni(deviceName);
+	mInstanceName = IntPtr::Zero;
+	if (!String::IsNullOrEmpty(instanceName)) 
+	{
+		mInstanceName = Marshal::StringToHGlobalUni(instanceName);
+	}
 
-	hr = mVds->CreateEx(NULL, (LPCWSTR)mDeviceName.ToPointer(), mConfig);
+	LPCWSTR instanceNamePtr = NULL;
+	if (mInstanceName != IntPtr::Zero) 
+	{
+		instanceNamePtr = (LPCWSTR)mInstanceName.ToPointer();
+	}
+
+	hr = mVds->CreateEx(instanceNamePtr, (LPCWSTR)mDeviceName.ToPointer(), mConfig);
 	if (!SUCCEEDED(hr)) 
 	{
 		throw gcnew System::InvalidProgramException(String::Format("VDS::Create failed: x{0}", hr));

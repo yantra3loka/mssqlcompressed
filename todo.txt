@@ -3,6 +3,8 @@ Needs a completion message with stats: MB/s, MB read, MB written, compression ra
 restore on top of an existing database? no error message
 rate doesn't print out its config
 package version number does not match assembly's version number.
+cntl-c kills the app, but we can handle the event: http://www.codeneverwritten.com/2006/10/ctrl-c-and-net-console-application.html
+
 
 does it work w/ SQL express?
 does it do log backups? yes, needs documenation
@@ -24,3 +26,35 @@ striped backups
 threading: request the next block from SQL Server while another thread is compressing
 remove the SQL injection attack
 encryption plugin
+
+
+db plugin changes:
+backup options:
+DatabaseName=
+BackupType=Full|Differential|Log
+READ_WRITE_FILEGROUPS=Yes
+File=
+FileGroup=
+COPY_ONLY=Yes
+Checksum=Yes|No
+STOP_ON_Checksum_ERROR=Yes|No
+
+restore options:
+Checksum=Yes|No
+STOP_ON_Checksum_ERROR=Yes|No
+KEEP_REPLICATION=Yes
+MOVE=log=file,MOVE=log=file,n
+ENABLE_BROKER=Yes
+ERROR_BROKER_CONVERSATIONS=Yes
+NEW_BROKER=Yes
+recovery=Yes
+norecovery=Yes
+standby=
+?REPLACE=Yes
+RESTRICTED_USER=Yes
+?stopat,etc
+partial=Yes
+READ_WRITE_FILEGROUPS=Yes
+File=
+FileGroup=
+Page=

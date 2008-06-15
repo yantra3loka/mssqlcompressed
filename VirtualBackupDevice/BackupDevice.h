@@ -52,7 +52,7 @@ namespace VirtualBackupDevice
 	public:
 		BackupDevice();
 		~BackupDevice();
-		void PreConnect(String^ deviceName);
+		void PreConnect(String ^instanceName, String^ deviceName);
 		void Connect(TimeSpan timeout);
 		bool GetCommand(CommandBuffer^ cBuff);
 		void CompleteCommand(CommandBuffer^ command, CompletionCode completionCode, int bytesTransferred);
@@ -62,6 +62,7 @@ namespace VirtualBackupDevice
 		IClientVirtualDeviceSet2* mVds;
 		IClientVirtualDevice* mVd;
 		IntPtr mDeviceName;
+		IntPtr mInstanceName;
 		VDConfig* mConfig;
 	};
 }

@@ -44,7 +44,7 @@ namespace MSSQLBackupPipe
         private Thread mThread;
         private Exception mException;
 
-        public void PreConnect(bool isBackup, string deviceName, IBackupDestination destination, string destinationConfig, List<ConfigPair> pipelineConfig)
+        public void PreConnect(bool isBackup, string instanceName, string deviceName, IBackupDestination destination, string destinationConfig, List<ConfigPair> pipelineConfig)
         {
 
             mIsBackup = isBackup;
@@ -61,7 +61,7 @@ namespace MSSQLBackupPipe
 
             mDevice = new BackupDevice();
 
-            mDevice.PreConnect(deviceName);
+            mDevice.PreConnect(instanceName, deviceName);
         }
 
         public void ConnectInAnoterThread()

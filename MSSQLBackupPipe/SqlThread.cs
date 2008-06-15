@@ -37,10 +37,11 @@ namespace MSSQLBackupPipe
         private string mSqlStatement;
         private bool mCompletedSuccessfully;
 
-        public void PreConnect(string sqlStatement)
+        public void PreConnect(string instanceName, string sqlStatement)
         {
             mSqlStatement = sqlStatement;
-            mCnn = new SqlConnection("Data Source=.;Initial Catalog=master;Integrated Security=SSPI;");
+            string dataSource = string.IsNullOrEmpty(instanceName) ? "." : string.Format(@".\{0}", instanceName);
+            mCnn = new SqlConnection(string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;", dataSource));
             mCnn.Open();
         }
         public void ConnectInAnoterThread()
@@ -66,6 +67,7 @@ namespace MSSQLBackupPipe
                     cmd.CommandTimeout = 0;
                     cmd.Connection = mCnn;
                     cmd.CommandType = CommandType.Text;
+
 
                     Console.WriteLine("Executing:");
                     Console.WriteLine(mSqlStatement);

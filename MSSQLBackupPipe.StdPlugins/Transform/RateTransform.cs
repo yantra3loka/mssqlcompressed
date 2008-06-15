@@ -43,6 +43,8 @@ namespace MSSQLBackupPipe.StdPlugins.Transform
 
             rateMb = double.Parse(parsedConfig["ratemb"]);
 
+            Console.WriteLine(string.Format("rate: ratemb = {0}", rateMb));
+
             return new RateLimitStream(writeToStream, rateMb);
         }
 
