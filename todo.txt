@@ -1,16 +1,11 @@
-backup from a named instance? not implemented
 Needs a completion message with stats: MB/s, MB read, MB written, compression ratio, etc
 restore on top of an existing database? no error message
-rate doesn't print out its config
 package version number does not match assembly's version number.
 cntl-c kills the app, but we can handle the event: http://www.codeneverwritten.com/2006/10/ctrl-c-and-net-console-application.html
 Do escaped cmd line args work?
-are params case sensitive?
 
 
-does it work w/ SQL express?
-does it do log backups? yes, needs documenation
-does it restore from a zip and naming the internal file? yes
+does it work w/ SQL express? yes, but I have sql installed too.
 
 
 document:
@@ -24,42 +19,8 @@ roadmap:
 gui
 when overwriting a file, don't destroy/recreate, but overwrite in place to preserve a defraged file.
 striped backups
-threading: request the next block from SQL Server while another thread is compressing
 encryption plugin
 ftp plugin
 7z plugin
+zip plugin
 
-
-db plugin changes:
-backup options:
-Database=
-BackupType=Full|Differential|Log
-READ_WRITE_FILEGROUPS
-File=
-FileGroup=
-COPY_ONLY
-CHECKSUM|NO_CHECKSUM
-STOP_ON_ERROR|CONTINUE_AFTER_ERROR
-
-restore options:
-restoretype=Database|Log
-CHECKSUM|NO_CHECKSUM
-STOP_ON_ERROR|CONTINUE_AFTER_ERROR
-KEEP_REPLICATION
-ENABLE_BROKER
-ERROR_BROKER_CONVERSATIONS
-NEW_BROKER
-recovery
-norecovery
-standby=
-REPLACE
-RESTART
-RESTRICTED_USER
-STOPAT=
-partial
-READ_WRITE_FILEGROUPS
-File=
-FileGroup=
-No: ?Page=
-LOADHISTORY
-MOVE='logicalname'TO'file'

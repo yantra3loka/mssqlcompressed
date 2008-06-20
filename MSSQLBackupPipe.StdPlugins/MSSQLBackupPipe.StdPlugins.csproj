@@ -46,7 +46,7 @@
     <Compile Include="IBackupStorage.cs" />
     <Compile Include="IBackupTransformer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Storage\LocalDestination.cs" />
+    <Compile Include="Storage\LocalStorage.cs" />
     <Compile Include="Transform\Bzip2Transform.cs" />
     <Compile Include="Transform\GzipTransform.cs" />
     <Compile Include="Transform\RateTransform.cs" />
