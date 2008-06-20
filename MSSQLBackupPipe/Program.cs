@@ -42,7 +42,7 @@ namespace MSSQLBackupPipe
 
                 Dictionary<string, Type> pipelineComponents = LoadComponents("IBackupTransformer");
                 Dictionary<string, Type> databaseComponents = LoadComponents("IBackupDatabase");
-                Dictionary<string, Type> destinationComponents = LoadComponents("IBackupDestination");
+                Dictionary<string, Type> storageComponents = LoadComponents("IBackupStorage");
 
 
                 if (args.Length == 0)
@@ -90,28 +90,28 @@ namespace MSSQLBackupPipe
 
                         case "backup":
                             {
-                                ConfigPair destinationConfig;
+                                ConfigPair storageConfig;
                                 ConfigPair databaseConfig;
                                 bool isBackup = true;
 
-                                List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, destinationComponents, out databaseConfig, out destinationConfig);
+                                List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
 
-                                return BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
+                                return BackupOrRestore(isBackup, storageConfig, databaseConfig, pipelineConfig);
                             }
 
                         case "restore":
                             {
-                                ConfigPair destinationConfig;
+                                ConfigPair storageConfig;
                                 ConfigPair databaseConfig;
 
                                 bool isBackup = false;
 
-                                List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, destinationComponents, out databaseConfig, out destinationConfig);
+                                List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
 
-                                return BackupOrRestore(isBackup, destinationConfig, databaseConfig, pipelineConfig);
+                                return BackupOrRestore(isBackup, storageConfig, databaseConfig, pipelineConfig);
                             }
                         case "listplugins":
-                            PrintPlugins(pipelineComponents, databaseComponents, destinationComponents);
+                            PrintPlugins(pipelineComponents, databaseComponents, storageComponents);
                             return 0;
                         case "helpplugin":
                             if (args.Length < 2)
@@ -121,7 +121,7 @@ namespace MSSQLBackupPipe
                             }
                             else
                             {
-                                return PrintPluginHelp(args[1], pipelineComponents, databaseComponents, destinationComponents);
+                                return PrintPluginHelp(args[1], pipelineComponents, databaseComponents, storageComponents);
                             }
                         
                         case "version":
@@ -179,7 +179,7 @@ namespace MSSQLBackupPipe
 
             string deviceName = Guid.NewGuid().ToString();
 
-            IBackupDestination dest = destConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupDestination;
+            IBackupStorage dest = destConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
             IBackupDatabase databaseComp = databaseConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupDatabase;
 
             bool success = false;
@@ -222,6 +222,17 @@ namespace MSSQLBackupPipe
             {
                 Console.WriteLine(e.Message);
                 dest.CleanupOnAbort();
+            }
+
+            Console.WriteLine();
+
+            if (success)
+            {
+                Console.WriteLine(string.Format("The {0} completed successfully.", isBackup ? "backup" : "restore"));
+            }
+            else
+            {
+                Console.WriteLine(string.Format("The {0} failed.", isBackup ? "backup" : "restore"));
             }
 
             return success ? 0 : -1;
@@ -302,26 +313,26 @@ namespace MSSQLBackupPipe
 
 
 
-        private static List<ConfigPair> ParseBackupOrRestoreArgs(List<string> args, bool isBackup, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> destinationComponents, out ConfigPair databaseConfig, out ConfigPair destinationConfig)
+        private static List<ConfigPair> ParseBackupOrRestoreArgs(List<string> args, bool isBackup, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> storageComponents, out ConfigPair databaseConfig, out ConfigPair storageConfig)
         {
             if (args.Count < 2)
             {
-                throw new ArgumentException("Please provide both the database and destination after the backup subcommand.");
+                throw new ArgumentException("Please provide both the database and storage plugins after the backup subcommand.");
             }
 
 
             string databaseArg;
-            string destinationArg;
+            string storageArg;
 
             if (isBackup)
             {
                 databaseArg = args[0];
-                destinationArg = args[args.Count - 1];
+                storageArg = args[args.Count - 1];
             }
             else
             {
                 databaseArg = args[args.Count - 1];
-                destinationArg = args[0];
+                storageArg = args[0];
             }
 
 
@@ -339,19 +350,19 @@ namespace MSSQLBackupPipe
 
 
 
-            if (destinationArg[0] == '[' && destinationArg[databaseArg.Length - 1] == ']')
+            if (storageArg[0] == '[' && storageArg[databaseArg.Length - 1] == ']')
             {
-                throw new ArgumentException("The last sub argument must be the destination.");
+                throw new ArgumentException("The last sub argument must be a storage plugin.");
             }
 
-            if (destinationArg.StartsWith("file://"))
+            if (storageArg.StartsWith("file://"))
             {
-                Uri uri = new Uri(destinationArg);
-                destinationArg = string.Format("local(path={0})", uri.LocalPath);
+                Uri uri = new Uri(storageArg);
+                storageArg = string.Format("local(path={0})", uri.LocalPath);
             }
 
 
-            destinationConfig = FindConfigPair(destinationComponents, destinationArg);
+            storageConfig = FindConfigPair(storageComponents, storageArg);
 
 
 
@@ -469,14 +480,14 @@ namespace MSSQLBackupPipe
         }
 
 
-        private static void PrintPlugins(Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> destinationComponents)
+        private static void PrintPlugins(Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> storageComponents)
         {
             Console.WriteLine("Database plugins:");
             PrintComponents(databaseComponents);
             Console.WriteLine("Pipeline plugins:");
             PrintComponents(pipelineComponents);
-            Console.WriteLine("Destination plugins:");
-            PrintComponents(destinationComponents);
+            Console.WriteLine("Storage plugins:");
+            PrintComponents(storageComponents);
 
             Console.WriteLine("");
             Console.WriteLine("To find more information about a plugin, type msbp.exe helpplugin <plugin>");
@@ -491,11 +502,11 @@ namespace MSSQLBackupPipe
             }
         }
 
-        private static int PrintPluginHelp(string pluginName, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> destinationComponents)
+        private static int PrintPluginHelp(string pluginName, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> storageComponents)
         {
             PrintPluginHelp(pluginName, databaseComponents);
             PrintPluginHelp(pluginName, pipelineComponents);
-            PrintPluginHelp(pluginName, destinationComponents);
+            PrintPluginHelp(pluginName, storageComponents);
             return 0;
         }
 

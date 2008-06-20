@@ -23,14 +23,14 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
-namespace MSSQLBackupPipe.StdPlugins.Destination
+namespace MSSQLBackupPipe.StdPlugins.Storage
 {
-    public class LocalDestination : IBackupDestination
+    public class LocalStorage : IBackupStorage
     {
         private bool mDeleteOnAbort;
         private FileInfo mFileInfoToDeleteOnAbort;
 
-        #region IBackupDestination Members
+        #region IBackupStorage Members
 
         public string GetName()
         {
@@ -43,7 +43,7 @@ namespace MSSQLBackupPipe.StdPlugins.Destination
 
             if (!parsedConfig.ContainsKey("path"))
             {
-                throw new ArgumentException("The path property is required.");
+                throw new ArgumentException("local: The path property is required.");
             }
 
             FileInfo fileInfo = new FileInfo(parsedConfig["path"]);
@@ -72,7 +72,7 @@ namespace MSSQLBackupPipe.StdPlugins.Destination
 
             if (!parsedConfig.ContainsKey("path"))
             {
-                throw new ArgumentException("The path property is required.");
+                throw new ArgumentException("local: The path property is required.");
             }
 
             FileInfo fileInfo = new FileInfo(parsedConfig["path"]);

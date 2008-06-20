@@ -38,10 +38,13 @@ namespace MSSQLBackupPipe.StdPlugins.Transform
 
             if (!parsedConfig.ContainsKey("ratemb"))
             {
-                throw new ArgumentException("The ratemb parameter is missing.  Use the rate option like rate(ratemb=10)");
+                throw new ArgumentException("rate: The ratemb parameter is missing.  Use the rate option like rate(ratemb=10)");
             }
 
-            rateMb = double.Parse(parsedConfig["ratemb"]);
+            if (!double.TryParse(parsedConfig["ratemb"], out rateMb))
+            {
+                throw new ArgumentException(string.Format("rate: Unable to parse the number: {0}", parsedConfig["ratemb"]));
+            }
 
             Console.WriteLine(string.Format("rate: ratemb = {0}", rateMb));
 

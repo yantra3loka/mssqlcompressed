@@ -42,7 +42,15 @@ namespace MSSQLBackupPipe.StdPlugins
             string sLevel;
             if (parsedConfig.TryGetValue("level", out sLevel))
             {
-                int.TryParse(sLevel, out level);
+                if (!int.TryParse(sLevel, out level))
+                {
+                    throw new ArgumentException(string.Format("zip64: Unable to parse the integer: {0}", sLevel));
+                }
+            }
+
+            if (level < 1 || level > 9)
+            {
+                throw new ArgumentException(string.Format("zip64: Level must be between 1 and 9: {0}", level));
             }
 
             if (parsedConfig.ContainsKey("filename"))

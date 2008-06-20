@@ -17,7 +17,7 @@ document:
 only works on the same machine as SQL Server
 how to do log backups
 which compression should I use?  How do they compare?
-
+list plugins
 
 
 roadmap:
@@ -26,6 +26,8 @@ when overwriting a file, don't destroy/recreate, but overwrite in place to prese
 striped backups
 threading: request the next block from SQL Server while another thread is compressing
 encryption plugin
+ftp plugin
+7z plugin
 
 
 db plugin changes:
@@ -44,7 +46,6 @@ restoretype=Database|Log
 CHECKSUM|NO_CHECKSUM
 STOP_ON_ERROR|CONTINUE_AFTER_ERROR
 KEEP_REPLICATION
-MOVE='logicalname'TO'file'
 ENABLE_BROKER
 ERROR_BROKER_CONVERSATIONS
 NEW_BROKER
@@ -56,8 +57,9 @@ RESTART
 RESTRICTED_USER
 STOPAT=
 partial
-READ_WRITE_FILEGROUPS=Yes
+READ_WRITE_FILEGROUPS
 File=
 FileGroup=
-?Page=
+No: ?Page=
 LOADHISTORY
+MOVE='logicalname'TO'file'

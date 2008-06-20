@@ -43,7 +43,7 @@ namespace MSSQLBackupPipe
         private Thread mThread;
         private Exception mException;
 
-        public void PreConnect(bool isBackup, string instanceName, string deviceName, IBackupDestination destination, string destinationConfig, List<ConfigPair> pipelineConfig)
+        public void PreConnect(bool isBackup, string instanceName, string deviceName, IBackupStorage storage, string storageConfig, List<ConfigPair> pipelineConfig)
         {
 
             mIsBackup = isBackup;
@@ -54,7 +54,7 @@ namespace MSSQLBackupPipe
 
             //FileMode mode = isBackup ? FileMode.Create : FileMode.Open;
 
-            mTopOfPipeline = isBackup ? destination.GetBackupWriter(destinationConfig) : destination.GetRestoreReader(destinationConfig);
+            mTopOfPipeline = isBackup ? storage.GetBackupWriter(storageConfig) : storage.GetRestoreReader(storageConfig);
 
             mTopOfPipeline = CreatePipeline(pipelineConfig, mTopOfPipeline, isBackup);
 

@@ -25,7 +25,7 @@ using System.IO;
 
 namespace MSSQLBackupPipe.StdPlugins
 {
-    public interface IBackupDestination : IBackupPlugin
+    public interface IBackupStorage : IBackupPlugin
     {
         Stream GetBackupWriter(string config);
         Stream GetRestoreReader(string config);

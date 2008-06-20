@@ -41,7 +41,15 @@ namespace MSSQLBackupPipe.StdPlugins
             string sLevel;
             if (parsedConfig.TryGetValue("level", out sLevel))
             {
-                int.TryParse(sLevel, out level);
+                if (!int.TryParse(sLevel, out level))
+                {
+                    throw new ArgumentException(string.Format("gzip: Unable to parse the integer: {0}", sLevel));
+                }
+            }
+
+            if (level < 1 || level > 9)
+            {
+                throw new ArgumentException(string.Format("gzip: Level must be between 1 and 9: {0}", level));
             }
 
             Console.WriteLine(string.Format("gzip: level = {0}", level));
