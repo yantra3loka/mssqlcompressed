@@ -39,16 +39,13 @@ namespace MSSQLBackupPipe
 
         public void PreConnect(string instanceName, string deviceName, IBackupDatabase dbComponent, string dbConfig, bool isBackup)
         {
-            try
-            {
-                string dataSource = string.IsNullOrEmpty(instanceName) ? "." : string.Format(@".\{0}", instanceName);
-                mCnn = new SqlConnection(string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;", dataSource));
-                mCnn.Open();
-            }
-            catch (Exception e)
-            {
-                throw new Exception(e.Message + "\n\nConnection String=" + mCnn.ConnectionString, e);
-            }
+            string dataSource = string.IsNullOrEmpty(instanceName) ? "." : string.Format(@".\{0}", instanceName);
+            string connectionString = string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;", dataSource);
+            Console.Write("Connecting: ");
+            Console.WriteLine(connectionString);
+            mCnn = new SqlConnection(connectionString);
+            mCnn.Open();
+
 
             mCmd = new SqlCommand();
             mCmd.Connection = mCnn;

@@ -220,9 +220,9 @@ namespace MSSQLBackupPipe.StdPlugins.Database
 
             string instanceName = null;
 
-            if (parsedConfig.ContainsKey("instance"))
+            if (parsedConfig.ContainsKey("instancename"))
             {
-                instanceName = parsedConfig["instance"];
+                instanceName = parsedConfig["instancename"];
             }
 
             if (instanceName != null)
