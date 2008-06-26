@@ -7,6 +7,8 @@ error on overwrite?
 
 does it work w/ SQL express? yes, but I have sql installed too.
 
+better device timeout, longer execution timeout (db might be locked)
+check file extensions
 
 document:
 only works on the same machine as SQL Server
