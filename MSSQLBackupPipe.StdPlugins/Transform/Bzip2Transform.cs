@@ -52,6 +52,17 @@ namespace MSSQLBackupPipe.StdPlugins
                 throw new ArgumentException(string.Format("bzip2: Level must be between 1 and 9: {0}", level));
             }
 
+
+
+            parsedConfig.Remove("level");
+
+
+
+            foreach (string key in parsedConfig.Keys)
+            {
+                throw new ArgumentException(string.Format("bzip2: Unknown parameter: {0}", key));
+            }
+
             Console.WriteLine(string.Format("bzip2: level = {0}", level));
 
             return new BZip2OutputStream(writeToStream, level);

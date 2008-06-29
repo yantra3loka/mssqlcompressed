@@ -52,6 +52,16 @@ namespace MSSQLBackupPipe.StdPlugins
                 throw new ArgumentException(string.Format("gzip: Level must be between 1 and 9: {0}", level));
             }
 
+
+            parsedConfig.Remove("level");
+
+
+
+            foreach (string key in parsedConfig.Keys)
+            {
+                throw new ArgumentException(string.Format("gzip: Unknown parameter: {0}", key));
+            }
+
             Console.WriteLine(string.Format("gzip: level = {0}", level));
 
             return new GZipOutputStream(writeToStream, level);

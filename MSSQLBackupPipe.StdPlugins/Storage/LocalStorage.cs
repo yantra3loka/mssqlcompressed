@@ -47,6 +47,7 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
             }
 
             FileInfo fileInfo = new FileInfo(parsedConfig["path"]);
+            parsedConfig.Remove("path");
 
             if (fileInfo.Exists)
             {
@@ -56,6 +57,12 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
             {
                 mDeleteOnAbort = true;
                 mFileInfoToDeleteOnAbort = fileInfo;
+            }
+
+
+            foreach (string key in parsedConfig.Keys)
+            {
+                throw new ArgumentException(string.Format("local: Unknown parameter: {0}", key));
             }
 
             Console.WriteLine(string.Format("local: path={0}", fileInfo.FullName));
@@ -76,6 +83,15 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
             }
 
             FileInfo fileInfo = new FileInfo(parsedConfig["path"]);
+            parsedConfig.Remove("path");
+
+
+
+            foreach (string key in parsedConfig.Keys)
+            {
+                throw new ArgumentException(string.Format("local: Unknown parameter: {0}", key));
+            }
+
             Console.WriteLine(string.Format("local: path={0}", fileInfo.FullName));
 
             return fileInfo.Open(FileMode.Open);

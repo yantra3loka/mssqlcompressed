@@ -47,6 +47,8 @@ namespace MSSQLBackupPipe.StdPlugins
                     throw new ArgumentException(string.Format("zip64: Unable to parse the integer: {0}", sLevel));
                 }
             }
+            parsedConfig.Remove("level");
+
 
             if (level < 1 || level > 9)
             {
@@ -56,6 +58,15 @@ namespace MSSQLBackupPipe.StdPlugins
             if (parsedConfig.ContainsKey("filename"))
             {
                 filename = parsedConfig["filename"];
+            }
+
+            parsedConfig.Remove("filename");
+
+
+
+            foreach (string key in parsedConfig.Keys)
+            {
+                throw new ArgumentException(string.Format("zip64: Unknown parameter: {0}", key));
             }
 
             Console.WriteLine(string.Format("zip64: level = {0}, filename={1}", level, filename));

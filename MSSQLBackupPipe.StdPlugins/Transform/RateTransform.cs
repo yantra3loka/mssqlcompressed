@@ -46,6 +46,16 @@ namespace MSSQLBackupPipe.StdPlugins.Transform
                 throw new ArgumentException(string.Format("rate: Unable to parse the number: {0}", parsedConfig["ratemb"]));
             }
 
+            parsedConfig.Remove("ratemb");
+
+
+
+            foreach (string key in parsedConfig.Keys)
+            {
+                throw new ArgumentException(string.Format("rate: Unknown parameter: {0}", key));
+            }
+
+
             Console.WriteLine(string.Format("rate: ratemb = {0}", rateMb));
 
             return new RateLimitStream(writeToStream, rateMb);
