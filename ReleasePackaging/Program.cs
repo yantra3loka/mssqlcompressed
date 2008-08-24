@@ -36,8 +36,8 @@ namespace ReleasePackaging
         {
             try
             {
-                const string BETA_STRING = "beta";
-                const string VERSION_STRING = "0.9";
+                const string BETA_STRING = "";
+                const string VERSION_STRING = "1.0";
 
                 DirectoryInfo solutionDir = new DirectoryInfo(args[0]);
 
