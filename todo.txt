@@ -25,4 +25,4 @@ encryption plugin
 ftp plugin
 7z plugin
 zip plugin
-
+make it SQL 2000 compatible.
