@@ -42,6 +42,7 @@
 
 
 using namespace System;
+using namespace System::Collections::Generic;
 
 
 namespace VirtualBackupDevice 
@@ -52,17 +53,32 @@ namespace VirtualBackupDevice
 	public:
 		BackupDevice();
 		~BackupDevice();
+
+		//old method.  Use the PreConnect() method with the list of device names.
 		void PreConnect(String ^instanceName, String^ deviceName);
+		// Call this method before executing your BACKUP or RESTORE command. The first device name must be globally unique (ideally a GUID).  The other device names must be unique in this list.
+		void PreConnect(String ^instanceName, List<String^>^ deviceNames);
+		// Call this method after you've sent the BACKUP or RESTORE command
 		void Connect(TimeSpan timeout);
+		//old method.  Use the GetCommand() method with the devicePos parameter.
 		bool GetCommand(CommandBuffer^ cBuff);
+		// Gets the data for the specified device.
+		bool GetCommand(int devicePos, CommandBuffer^ cBuff);
+		//old method.  Use the CompleteCommand() method with the devicePos parameter.
 		void CompleteCommand(CommandBuffer^ command, CompletionCode completionCode, int bytesTransferred);
+		// Must be called after each GetCommand() to report success or failure.  The same devicePos in GetCommand() should be used here.
+		void CompleteCommand(int devicePos, CommandBuffer^ command, CompletionCode completionCode, int bytesTransferred);
+		// Tells SQL Server to abort
 		void SignalAbort();
 
 	private:
 		IClientVirtualDeviceSet2* mVds;
-		IClientVirtualDevice* mVd;
-		IntPtr mDeviceName;
 		IntPtr mInstanceName;
 		VDConfig* mConfig;
+
+		//int mNumDevices;
+		List<IntPtr> mVirtDevices;
+		//IClientVirtualDevice* mVd;
+		List<IntPtr> mDeviceNames;
 	};
 }

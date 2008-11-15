@@ -108,17 +108,20 @@ VDC_Command* CommandBuffer::GetCommand()
 
 BackupDevice::BackupDevice()
 {
-	mVd = NULL;
-	mVds = NULL;
+	//mVirtDevices.Clear();
+	//mDeviceNames.Clear();
 	mConfig = NULL;
 }
 
 BackupDevice::~BackupDevice()
 {
-	if (mVd != NULL)
+	for(int i =0; i < mVirtDevices.Count; i++) 
 	{
-		mVd->Release();
+		IClientVirtualDevice* dev = (IClientVirtualDevice*)mVirtDevices[i].ToPointer();
+		dev->Release();
 	}
+	mVirtDevices.Clear();
+
 
 	if (mVds != NULL)
 	{
@@ -126,8 +129,12 @@ BackupDevice::~BackupDevice()
 		mVds->Release();
 	}
 
+	for(int i =0; i < mDeviceNames.Count; i++) 
+	{
+		Marshal::FreeHGlobal(mDeviceNames[i]);
+	}
+	mDeviceNames.Clear();
 
-	Marshal::FreeHGlobal(mDeviceName);
 	Marshal::FreeHGlobal(mInstanceName);
 
 	if (mConfig != NULL) 
@@ -135,17 +142,27 @@ BackupDevice::~BackupDevice()
 		delete mConfig;
 	}
 
-	mVd = NULL;
+	//mVd = NULL;
 	mVds = NULL;
 }
 
 
 
-void BackupDevice::PreConnect(String ^instanceName, String ^deviceName)
+void BackupDevice::PreConnect(String ^instanceName, List<String^>^ deviceNames)
 {
-	if (mVd != NULL || mVds != NULL)
+	if (mVirtDevices.Count > 0 || mVds != NULL)
 	{
 		throw gcnew System::InvalidProgramException(String::Format("You can only call Connect once."));
+	}
+
+	if (deviceNames->Count > 64) 
+	{
+		throw gcnew System::InvalidProgramException(String::Format("You can only have up to 64 devices."));
+	}
+
+	if (deviceNames->Count < 1) 
+	{
+		throw gcnew System::InvalidProgramException(String::Format("You must have at least one device."));
 	}
 
 	HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
@@ -168,10 +185,12 @@ void BackupDevice::PreConnect(String ^instanceName, String ^deviceName)
 
 	// very simple config that is "pipe-like"
 	memset(mConfig, 0, sizeof(*mConfig));  
-	mConfig->deviceCount = 1;
+	mConfig->deviceCount = deviceNames->Count;
 
-
-	mDeviceName = Marshal::StringToHGlobalUni(deviceName);
+	for (int i = 0; i < deviceNames->Count; i++) 
+	{
+		mDeviceNames.Add(Marshal::StringToHGlobalUni(deviceNames[i]));
+	}
 	mInstanceName = IntPtr::Zero;
 	if (!String::IsNullOrEmpty(instanceName)) 
 	{
@@ -184,7 +203,7 @@ void BackupDevice::PreConnect(String ^instanceName, String ^deviceName)
 		instanceNamePtr = (LPCWSTR)mInstanceName.ToPointer();
 	}
 
-	hr = mVds->CreateEx(instanceNamePtr, (LPCWSTR)mDeviceName.ToPointer(), mConfig);
+	hr = mVds->CreateEx(instanceNamePtr, (LPCWSTR)mDeviceNames[0].ToPointer(), mConfig);
 	if (!SUCCEEDED(hr)) 
 	{
 		throw gcnew System::InvalidProgramException(String::Format("VDS::Create failed: x{0}", hr));
@@ -204,22 +223,30 @@ void BackupDevice::Connect(TimeSpan timeout)
 		throw gcnew System::InvalidProgramException(String::Format("timeout exceeded: x{0}", hr));
 	}
 
-
-	IClientVirtualDevice* vd;
-	hr = mVds->OpenDevice((LPCWSTR)mDeviceName.ToPointer(), &vd);
-	mVd = vd;
-	if (!SUCCEEDED(hr)) 
+	for (int i = 0; i < mDeviceNames.Count; i++) 
 	{
-		throw gcnew System::InvalidProgramException(String::Format("VDS::OpenDevice failed: x{0}", hr));
+		IClientVirtualDevice* vd;
+		hr = mVds->OpenDevice((LPCWSTR)mDeviceNames[i].ToPointer(), &vd);
+		if (!SUCCEEDED(hr)) 
+		{
+			throw gcnew System::InvalidProgramException(String::Format("VDS::OpenDevice failed: x{0}", hr));
+		}
+		IntPtr ptr(vd);
+		mVirtDevices.Add(ptr);
 	}
-
 
 }
 
-bool BackupDevice::GetCommand(CommandBuffer^ cBuff)
+bool BackupDevice::GetCommand(int devicePos, CommandBuffer^ cBuff)
 {
+	if (devicePos < 0 || devicePos >= mDeviceNames.Count)
+	{
+		throw gcnew InvalidProgramException(String::Format("DevicePos must be 0 to [num devices] - 1: {0}.", devicePos));
+	}
+
 	VDC_Command* cmd;
-	HRESULT hr = mVd->GetCommand(INFINITE, &cmd);
+	IClientVirtualDevice* vd = (IClientVirtualDevice*)mVirtDevices[devicePos].ToPointer();
+	HRESULT hr = vd->GetCommand(INFINITE, &cmd);
 	if (SUCCEEDED(hr))
 	{
 		cBuff->SetCommand(cmd);
@@ -237,13 +264,37 @@ bool BackupDevice::GetCommand(CommandBuffer^ cBuff)
 	
 }
 
-void BackupDevice::CompleteCommand(CommandBuffer ^command, CompletionCode completionCode, int bytesTransferred)
+void BackupDevice::CompleteCommand(int devicePos, CommandBuffer ^command, CompletionCode completionCode, int bytesTransferred)
 {
+	if (devicePos < 0 || devicePos >= mDeviceNames.Count)
+	{
+		throw gcnew InvalidProgramException(String::Format("DevicePos must be 0 to [num devices] - 1: {0}.", devicePos));
+	}
+
+	IClientVirtualDevice* vd = (IClientVirtualDevice*)mVirtDevices[devicePos].ToPointer();
 	HRESULT hr;
-	if (!SUCCEEDED(hr = mVd->CompleteCommand(command->GetCommand(), (DWORD)completionCode, (DWORD)bytesTransferred, 0)))
+	if (!SUCCEEDED(hr = vd->CompleteCommand(command->GetCommand(), (DWORD)completionCode, (DWORD)bytesTransferred, 0)))
 	{
 		throw gcnew InvalidProgramException(String::Format("Unable to complete the command: {0}.", hr));
 	}
+}
+
+
+void BackupDevice::PreConnect(String ^instanceName, String^ deviceName)
+{
+	List<String^>^ devArray = gcnew List<String^>(1);
+	devArray->Add(deviceName);
+	PreConnect(instanceName, devArray);
+}
+
+bool BackupDevice::GetCommand(CommandBuffer^ cBuff)
+{
+	return GetCommand(0, cBuff);
+}
+
+void BackupDevice::CompleteCommand(CommandBuffer^ command, CompletionCode completionCode, int bytesTransferred)
+{
+	CompleteCommand(0, command, completionCode, bytesTransferred);
 }
 
 
