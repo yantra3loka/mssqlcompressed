@@ -35,35 +35,24 @@ namespace MSSQLBackupPipe
 
         private bool mDisposed;
         private Stream mTopOfPipeline = null;
-        private BackupDevice mDevice = null;
+        private VirtualDevice mDevice = null;
+        private VirtualDeviceSet mDeviceSet = null;
         private bool mIsBackup;
-        //private bool mFileExistsInitially;
-        //private FileInfo mFileInfo;
+
 
         private Thread mThread;
         private Exception mException;
 
-        public void PreConnect(bool isBackup, string instanceName, string deviceName, IBackupStorage storage, string storageConfig, List<ConfigPair> pipelineConfig)
+        public void Initialize(bool isBackup, Stream topOfPipeline, VirtualDevice device, VirtualDeviceSet deviceSet)
         {
 
             mIsBackup = isBackup;
-            //mFileInfo = new FileInfo(filename);
-            //mFileExistsInitially = mFileInfo.Exists;
-
-
-
-            //FileMode mode = isBackup ? FileMode.Create : FileMode.Open;
-
-            mTopOfPipeline = isBackup ? storage.GetBackupWriter(storageConfig) : storage.GetRestoreReader(storageConfig);
-
-            mTopOfPipeline = CreatePipeline(pipelineConfig, mTopOfPipeline, isBackup);
-
-            mDevice = new BackupDevice();
-
-            mDevice.PreConnect(instanceName, deviceName);
+            mTopOfPipeline = topOfPipeline;
+            mDevice = device;
+            mDeviceSet = deviceSet;
         }
 
-        public void ConnectInAnoterThread()
+        public void BeginCopy()
         {
 
             ThreadStart job = new ThreadStart(ThreadStart);
@@ -73,7 +62,7 @@ namespace MSSQLBackupPipe
 
         }
 
-        public Exception WaitForCompletion()
+        public Exception EndCopy()
         {
             mThread.Join();
             return mException;
@@ -83,7 +72,7 @@ namespace MSSQLBackupPipe
         {
             try
             {
-                mDevice.Connect(new TimeSpan(0, 0, 10));
+
 
                 CommandBuffer buff = new CommandBuffer();
 
@@ -93,7 +82,7 @@ namespace MSSQLBackupPipe
                 }
                 catch (Exception)
                 {
-                    mDevice.SignalAbort();
+                    mDeviceSet.SignalAbort();
                     throw;
                 }
 
@@ -107,13 +96,15 @@ namespace MSSQLBackupPipe
 
 
 
-        private static void ReadWriteData(BackupDevice dev, CommandBuffer buff, Stream stream, bool isBackup)
+        private static void ReadWriteData(VirtualDevice device, CommandBuffer buff, Stream stream, bool isBackup)
         {
-            while (dev.GetCommand(buff))
+
+            bool ignore;
+            while (device.GetCommand(null, buff, out ignore))
             {
 
                 CompletionCode completionCode = CompletionCode.DISK_FULL;
-                int bytesTransferred = 0;
+                uint bytesTransferred = 0;
 
                 try
                 {
@@ -127,7 +118,7 @@ namespace MSSQLBackupPipe
                                 throw new InvalidOperationException("Cannot write in 'restore' mode");
                             }
 
-                            stream.Write(buff.GetBuffer(), 0, buff.GetCount());
+                            stream.Write(buff.GetBuffer(), 0, (int)buff.GetCount());
                             bytesTransferred = buff.GetCount();
 
                             completionCode = CompletionCode.SUCCESS;
@@ -141,7 +132,7 @@ namespace MSSQLBackupPipe
                             }
 
                             byte[] buffArray = buff.GetBuffer();
-                            bytesTransferred = stream.Read(buffArray, 0, buff.GetCount());
+                            bytesTransferred = (uint)stream.Read(buffArray, 0, (int)buff.GetCount());
                             buff.SetBuffer(buffArray, bytesTransferred);
 
                             if (bytesTransferred > 0)
@@ -159,6 +150,8 @@ namespace MSSQLBackupPipe
                             break;
 
                         case DeviceCommandType.Flush:
+                            // TODO: should we flush?
+                            //stream.Flush();
                             completionCode = CompletionCode.SUCCESS;
                             break;
 
@@ -166,33 +159,13 @@ namespace MSSQLBackupPipe
                 }
                 finally
                 {
-                    dev.CompleteCommand(buff, completionCode, bytesTransferred);
+                    device.CompleteCommand(buff, completionCode, bytesTransferred, (ulong)0);
                 }
 
 
             }
         }
 
-
-
-        private static Stream CreatePipeline(List<ConfigPair> pipelineConfig, Stream fileStream, bool isBackup)
-        {
-            Stream topStream = fileStream;
-
-            for (int i = pipelineConfig.Count - 1; i >= 0; i--)
-            {
-                ConfigPair config = pipelineConfig[i];
-
-                MSSQLBackupPipe.StdPlugins.IBackupTransformer tran = config.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as MSSQLBackupPipe.StdPlugins.IBackupTransformer;
-                if (tran == null)
-                {
-                    throw new ArgumentException(string.Format("Unable to create pipe component: {0}", config.TransformationType.Name));
-                }
-                topStream = isBackup ? tran.GetBackupWriter(config.ConfigString, topStream) : tran.GetRestoreReader(config.ConfigString, topStream);
-            }
-
-            return topStream;
-        }
 
 
 
@@ -200,7 +173,7 @@ namespace MSSQLBackupPipe
 
         #region IDisposable Members
 
-        void IDisposable.Dispose()
+        public void Dispose()
         {
             Dispose(true);
         }
@@ -219,10 +192,10 @@ namespace MSSQLBackupPipe
                     // dispose of managed resources
                     if (mDevice != null)
                     {
-                        mDevice.Dispose();
                         mDevice = null;
-
                     }
+
+                    mDeviceSet = null;
 
                     if (mTopOfPipeline != null)
                     {

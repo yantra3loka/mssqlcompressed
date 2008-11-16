@@ -61,6 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				UseLibraryDependencyInputs="false"
 				AdditionalDependencies="$(NOINHERIT)"
 				LinkIncremental="2"
 				IgnoreDefaultLibraryNames=""
@@ -348,10 +349,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\BackupDevice.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\CommandBuffer.cpp"
 				>
 			</File>
@@ -391,16 +388,28 @@
 					/>
 				</FileConfiguration>
 			</File>
+			<File
+				RelativePath=".\StringWrapper.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\VirtualDevice.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\VirtualDeviceSet.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\VirtualDeviceSetConfig.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
-			<File
-				RelativePath=".\BackupDevice.h"
-				>
-			</File>
 			<File
 				RelativePath=".\CommandBuffer.h"
 				>
@@ -422,6 +431,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\StringWrapper.h"
+				>
+			</File>
+			<File
 				RelativePath=".\vdi.h"
 				>
 			</File>
@@ -431,6 +444,18 @@
 			</File>
 			<File
 				RelativePath=".\vdiguid.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VirtualDevice.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VirtualDeviceSet.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VirtualDeviceSetConfig.h"
 				>
 			</File>
 		</Filter>

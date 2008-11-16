@@ -21,13 +21,14 @@
 
 #pragma once
 
+#include "Stdafx.h"
+
+
 
 #include "DeviceCommandType.h"
 
 
-#include "vdi.h"
-#include "vdierror.h"
-#include "vdiguid.h"
+
 
 
 
@@ -39,8 +40,8 @@ namespace VirtualBackupDevice
 	public:
 		CommandBuffer();
 		array<unsigned char>^ GetBuffer();
-		void SetBuffer(array<unsigned char>^ buff, int count);
-		int GetCount();
+		void SetBuffer(array<unsigned char>^ buff, UINT32 count);
+		UINT32 GetCount();
 		DeviceCommandType GetCommandType();
 
 	internal:

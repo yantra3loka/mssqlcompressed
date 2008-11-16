@@ -27,8 +27,8 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
 {
     public class LocalStorage : IBackupStorage
     {
-        private bool mDeleteOnAbort;
-        private FileInfo mFileInfoToDeleteOnAbort;
+        private List<bool> mDeleteOnAbort;
+        private List<FileInfo> mFileInfosToDeleteOnAbort;
 
         #region IBackupStorage Members
 
@@ -37,42 +37,73 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
             return "local";
         }
 
-        public Stream GetBackupWriter(string config)
+        public int GetNumberOfDevices(string config)
         {
-            Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
+            Dictionary<string, List<string>> parsedConfig = ConfigUtil.ParseArrayConfig(config);
 
             if (!parsedConfig.ContainsKey("path"))
             {
                 throw new ArgumentException("local: The path property is required.");
             }
 
-            FileInfo fileInfo = new FileInfo(parsedConfig["path"]);
-            parsedConfig.Remove("path");
 
-            if (fileInfo.Exists)
-            {
-                mDeleteOnAbort = false;
-            }
-            else
-            {
-                mDeleteOnAbort = true;
-                mFileInfoToDeleteOnAbort = fileInfo;
-            }
-
-
-            foreach (string key in parsedConfig.Keys)
-            {
-                throw new ArgumentException(string.Format("local: Unknown parameter: {0}", key));
-            }
-
-            Console.WriteLine(string.Format("local: path={0}", fileInfo.FullName));
-
-            return fileInfo.Open(FileMode.Create);
+            return parsedConfig["path"].Count;
         }
 
-        public Stream GetRestoreReader(string config)
+
+        public Stream[] GetBackupWriter(string config)
         {
-            mDeleteOnAbort = false;
+            Dictionary<string, List<string>> parsedConfig = ConfigUtil.ParseArrayConfig(config);
+
+            if (!parsedConfig.ContainsKey("path"))
+            {
+                throw new ArgumentException("local: The path property is required.");
+            }
+
+            List<string> paths = parsedConfig["path"];
+            List<FileInfo> fileInfos = paths.ConvertAll<FileInfo>(delegate(string path)
+            {
+                return new FileInfo(path);
+            });
+
+            parsedConfig.Remove("path");
+
+            // initialize to false:
+            mDeleteOnAbort = new List<bool>(new bool[fileInfos.Count]);
+            mFileInfosToDeleteOnAbort = fileInfos;
+
+            for (int i = 0; i < mDeleteOnAbort.Count; i++)
+            {
+                mDeleteOnAbort[i] = fileInfos[i].Exists;
+            }
+
+
+            foreach (string key in parsedConfig.Keys)
+            {
+                throw new ArgumentException(string.Format("local: Unknown parameter: {0}", key));
+            }
+
+            Console.WriteLine(string.Format("local:"));
+            foreach (FileInfo fi in fileInfos)
+            {
+                Console.WriteLine(string.Format("\tpath={0}", fi.FullName));
+            }
+
+            List<Stream> results = new List<Stream>(fileInfos.Count);
+            foreach (FileInfo fi in fileInfos)
+            {
+                results.Add(fi.Open(FileMode.Create));
+            }
+
+            return results.ToArray();
+        }
+
+        public Stream[] GetRestoreReader(string config)
+        {
+            for (int i = 0; i < mDeleteOnAbort.Count; i++)
+            {
+                mDeleteOnAbort[i] = false;
+            }
 
 
             Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
@@ -94,7 +125,7 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
 
             Console.WriteLine(string.Format("local: path={0}", fileInfo.FullName));
 
-            return fileInfo.Open(FileMode.Open);
+            return new Stream[] { fileInfo.Open(FileMode.Open) };
         }
 
         public string GetConfigHelp()
@@ -112,9 +143,18 @@ to local(path=c:\model.bak).
 
         public void CleanupOnAbort()
         {
-            if (mDeleteOnAbort && mFileInfoToDeleteOnAbort != null)
+            if (mFileInfosToDeleteOnAbort != null)
             {
-                mFileInfoToDeleteOnAbort.Delete();
+                for (int i = 0; i < mFileInfosToDeleteOnAbort.Count; i++)
+                {
+                    FileInfo fi = mFileInfosToDeleteOnAbort[i];
+                    bool deleteOnAbort = mDeleteOnAbort[i];
+                    if (deleteOnAbort && fi != null)
+                    {
+                        fi.Delete();
+                    }
+                }
+                mFileInfosToDeleteOnAbort = null;
             }
         }
 

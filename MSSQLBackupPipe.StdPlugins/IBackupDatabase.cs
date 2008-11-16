@@ -27,8 +27,8 @@ namespace MSSQLBackupPipe.StdPlugins
 {
     public interface IBackupDatabase : IBackupPlugin
     {
-        void ConfigureBackupCommand(string config, string device, SqlCommand cmd);
-        void ConfigureRestoreCommand(string config, string device, SqlCommand cmd);
+        void ConfigureBackupCommand(string config, List<string> deviceNames, SqlCommand cmd);
+        void ConfigureRestoreCommand(string config, List<string> deviceNames, SqlCommand cmd);
         string GetInstanceName(string config);
     }
 }

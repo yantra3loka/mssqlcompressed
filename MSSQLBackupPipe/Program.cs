@@ -26,7 +26,7 @@ using System.Text;
 using System.IO;
 using System.Reflection;
 
-//using VirtualBackupDevice;
+using VirtualBackupDevice;
 using MSSQLBackupPipe.StdPlugins;
 
 namespace MSSQLBackupPipe
@@ -123,10 +123,10 @@ namespace MSSQLBackupPipe
                             {
                                 return PrintPluginHelp(args[1], pipelineComponents, databaseComponents, storageComponents);
                             }
-                        
+
                         case "version":
                             Version version = Assembly.GetEntryAssembly().GetName().Version;
-                            ProcessorArchitecture arch = typeof(VirtualBackupDevice.BackupDevice).Assembly.GetName().ProcessorArchitecture;
+                            ProcessorArchitecture arch = typeof(VirtualBackupDevice.VirtualDeviceSet).Assembly.GetName().ProcessorArchitecture;
                             Console.WriteLine(string.Format("v{0} {1} ({2:yyyy MMM dd})", version, arch, (new DateTime(2000, 1, 1)).AddDays(version.Build)));
                             return 0;
                         default:
@@ -174,12 +174,12 @@ namespace MSSQLBackupPipe
         /// <summary>
         /// returns true if successful
         /// </summary>
-        private static int BackupOrRestore(bool isBackup, ConfigPair destConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig)
+        private static int BackupOrRestore(bool isBackup, ConfigPair storageConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig)
         {
 
-            string deviceName = Guid.NewGuid().ToString();
+            string deviceSetName = Guid.NewGuid().ToString();
 
-            IBackupStorage dest = destConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
+            IBackupStorage storage = storageConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
             IBackupDatabase databaseComp = databaseConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupDatabase;
 
             bool success = false;
@@ -187,33 +187,74 @@ namespace MSSQLBackupPipe
             try
             {
 
+                int numDevices = storage.GetNumberOfDevices(storageConfig.ConfigString);
+
+
+
                 //NotifyWhenReady notifyWhenReady = new NotifyWhenReady(deviceName, isBackup);
-                using (DeviceThread device = new DeviceThread())
+                using (VirtualDeviceSet deviceSet = new VirtualDeviceSet())
                 {
                     using (SqlThread sql = new SqlThread())
                     {
                         string instanceName = databaseComp.GetInstanceName(databaseConfig.ConfigString);
-                        sql.PreConnect(instanceName, deviceName, databaseComp, databaseConfig.ConfigString, isBackup);
-                        device.PreConnect(isBackup, instanceName, deviceName, dest, destConfig.ConfigString, pipelineConfig);
-                        device.ConnectInAnoterThread();
-                        sql.ConnectInAnoterThread();
-                        Exception sqlE = sql.WaitForCompletion();
-                        if (sqlE != null)
-                        {
-                            Console.WriteLine(sqlE.Message);
-                            //Console.WriteLine(e.StackTrace);
-                        }
+                        List<string> deviceNames = sql.PreConnect(instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.ConfigString, isBackup);
 
-                        Exception devE = device.WaitForCompletion();
-                        if (devE != null)
+                        using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.ConfigString) : storage.GetRestoreReader(storageConfig.ConfigString)))
+                        using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup)))
                         {
-                            Console.WriteLine(devE.Message);
-                            //Console.WriteLine(e.StackTrace);
-                        }
 
-                        if (devE == null && sqlE == null)
-                        {
-                            success = true;
+                            VirtualDeviceSetConfig config = new VirtualDeviceSetConfig();
+                            config.DeviceCount = (uint)topOfPilelines.Count;
+                            deviceSet.CreateEx(instanceName, deviceSetName, config);
+                            sql.BeginExecute();
+                            deviceSet.GetConfiguration(TimeSpan.FromMinutes(10));
+                            List<VirtualDevice> devices = new List<VirtualDevice>();
+
+                            foreach (string devName in deviceNames)
+                            {
+                                devices.Add(deviceSet.OpenDevice(devName));
+                            }
+
+                            using (DisposableList<DeviceThread> threads = new DisposableList<DeviceThread>(devices.Count))
+                            {
+                                for (int i = 0; i < devices.Count; i++)
+                                {
+                                    DeviceThread dThread = new DeviceThread();
+                                    threads.Add(dThread);
+                                    dThread.Initialize(isBackup, topOfPilelines[i], devices[i], deviceSet);
+                                }
+                                foreach (DeviceThread dThread in threads)
+                                {
+                                    dThread.BeginCopy();
+                                }
+
+                                bool hasException = false;
+
+                                Exception sqlE = sql.EndExecute();
+                                if (sqlE != null)
+                                {
+                                    Console.WriteLine(sqlE.Message);
+                                    //Console.WriteLine(e.StackTrace);
+                                    hasException = true;
+                                }
+
+                                foreach (DeviceThread dThread in threads)
+                                {
+                                    Exception devE = dThread.EndCopy();
+                                    if (devE != null)
+                                    {
+                                        Console.WriteLine(devE.Message);
+                                        //Console.WriteLine(e.StackTrace);
+                                        hasException = true;
+                                    }
+                                }
+
+
+                                if (!hasException)
+                                {
+                                    success = true;
+                                }
+                            }
                         }
                     }
                 }
@@ -221,7 +262,7 @@ namespace MSSQLBackupPipe
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
-                dest.CleanupOnAbort();
+                storage.CleanupOnAbort();
             }
 
             Console.WriteLine();
@@ -403,6 +444,34 @@ namespace MSSQLBackupPipe
 
             return results;
         }
+
+
+
+        private static Stream[] CreatePipeline(List<ConfigPair> pipelineConfig, List<Stream> fileStreams, bool isBackup)
+        {
+            List<Stream> result = new List<Stream>(fileStreams.Count);
+
+            foreach (Stream fileStream in fileStreams)
+            {
+                Stream topStream = fileStream;
+
+                for (int i = pipelineConfig.Count - 1; i >= 0; i--)
+                {
+                    ConfigPair config = pipelineConfig[i];
+
+                    MSSQLBackupPipe.StdPlugins.IBackupTransformer tran = config.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as MSSQLBackupPipe.StdPlugins.IBackupTransformer;
+                    if (tran == null)
+                    {
+                        throw new ArgumentException(string.Format("Unable to create pipe component: {0}", config.TransformationType.Name));
+                    }
+                    topStream = isBackup ? tran.GetBackupWriter(config.ConfigString, topStream) : tran.GetRestoreReader(config.ConfigString, topStream);
+                }
+                result.Add(topStream);
+            }
+            return result.ToArray();
+        }
+
+
 
         private static ConfigPair FindConfigPair(Dictionary<string, Type> pipelineComponents, string componentString)
         {

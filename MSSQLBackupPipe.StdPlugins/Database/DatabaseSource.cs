@@ -36,7 +36,7 @@ namespace MSSQLBackupPipe.StdPlugins.Database
             return "db";
         }
 
-        public void ConfigureBackupCommand(string config, string device, SqlCommand cmd)
+        public void ConfigureBackupCommand(string config, List<string> deviceNames, SqlCommand cmd)
         {
             Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config, "FILE", "FILEGROUP");
             Dictionary<string, List<string>> parsedArrayConfig = ConfigUtil.ParseArrayConfig(config);
@@ -211,7 +211,13 @@ namespace MSSQLBackupPipe.StdPlugins.Database
 
 
             cmd.CommandType = CommandType.Text;
-            cmd.CommandText = string.Format("BACKUP {0} @databasename {1}TO VIRTUAL_DEVICE='{2}'{3};", databaseOrLog, filegroupClause, device, withClause);
+
+            List<string> devSql = deviceNames.ConvertAll<string>(delegate(string devName)
+            {
+                return string.Format("VIRTUAL_DEVICE='{0}'", devName);
+            });
+
+            cmd.CommandText = string.Format("BACKUP {0} @databasename {1}TO {2}{3};", databaseOrLog, filegroupClause, string.Join(",", devSql.ToArray()), withClause);
         }
 
         public string GetInstanceName(string config)
@@ -234,7 +240,7 @@ namespace MSSQLBackupPipe.StdPlugins.Database
         }
 
 
-        public void ConfigureRestoreCommand(string config, string device, SqlCommand cmd)
+        public void ConfigureRestoreCommand(string config, List<string> deviceNames, SqlCommand cmd)
         {
             Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config, "FILE", "FILEGROUP", "MOVE");
             Dictionary<string, List<string>> parsedArrayConfig = ConfigUtil.ParseArrayConfig(config);
@@ -501,7 +507,8 @@ namespace MSSQLBackupPipe.StdPlugins.Database
                     int quoteCount = 0;
                     foreach (char c in moveInfo)
                     {
-                        if (c == '\'') {
+                        if (c == '\'')
+                        {
                             quoteCount++;
                         }
                     }
@@ -512,7 +519,7 @@ namespace MSSQLBackupPipe.StdPlugins.Database
 
                     string[] moveSplit = moveInfo.Split('\'');
                     string moveFrom = moveSplit[1];
-                    string moveToKeyword = moveSplit[2].Trim();;
+                    string moveToKeyword = moveSplit[2].Trim(); ;
                     string moveTo = moveSplit[3];
 
                     if (moveToKeyword != "TO")
@@ -520,7 +527,7 @@ namespace MSSQLBackupPipe.StdPlugins.Database
                         throw new ArgumentException(string.Format("db: Invalid MOVE clause: {0}.  Please write it in the form MOVE='from'TO'to'", moveInfo));
                     }
 
-                    
+
 
                     moveClause += string.Format("MOVE '{0}' TO '{1}'", moveFrom, moveTo);
 
@@ -575,7 +582,12 @@ namespace MSSQLBackupPipe.StdPlugins.Database
 
 
             cmd.CommandType = CommandType.Text;
-            cmd.CommandText = string.Format("RESTORE {0} @databasename {1}FROM VIRTUAL_DEVICE='{2}'{3};", databaseOrLog, filegroupClause, device, withClause);
+            List<string> devSql = deviceNames.ConvertAll<string>(delegate(string devName)
+                {
+                    return string.Format("VIRTUAL_DEVICE='{0}'", devName);
+                });
+
+            cmd.CommandText = string.Format("RESTORE {0} @databasename {1}FROM {2}{3};", databaseOrLog, filegroupClause, string.Join(",", devSql.ToArray()), withClause);
         }
 
         public string GetConfigHelp()

@@ -27,8 +27,9 @@ namespace MSSQLBackupPipe.StdPlugins
 {
     public interface IBackupStorage : IBackupPlugin
     {
-        Stream GetBackupWriter(string config);
-        Stream GetRestoreReader(string config);
+        Stream[] GetBackupWriter(string config);
+        Stream[] GetRestoreReader(string config);
+        int GetNumberOfDevices(string config);
         void CleanupOnAbort();
 
     }

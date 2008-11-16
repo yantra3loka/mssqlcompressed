@@ -14,9 +14,9 @@ using namespace System::Security::Permissions;
 [assembly:AssemblyTitleAttribute("VirtualBackupDevice")];
 [assembly:AssemblyDescriptionAttribute("")];
 [assembly:AssemblyConfigurationAttribute("")];
-[assembly:AssemblyCompanyAttribute("Latitude Group Limited")];
+[assembly:AssemblyCompanyAttribute("")];
 [assembly:AssemblyProductAttribute("VirtualBackupDevice")];
-[assembly:AssemblyCopyrightAttribute("Copyright (c) Latitude Group Limited 2008")];
+[assembly:AssemblyCopyrightAttribute("Copyright (c) Clay Lenhart 2008")];
 [assembly:AssemblyTrademarkAttribute("")];
 [assembly:AssemblyCultureAttribute("")];
 

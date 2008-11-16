@@ -31,65 +31,63 @@ namespace MSSQLBackupPipe
 {
     class SqlThread : IDisposable
     {
-        private Thread mThread;
-        private Exception mException;
+        //private Exception mException;
         private SqlConnection mCnn;
         private SqlCommand mCmd;
+        IAsyncResult mAsyncResult;
         private bool mDisposed;
 
-        public void PreConnect(string instanceName, string deviceName, IBackupDatabase dbComponent, string dbConfig, bool isBackup)
+        /// <summary>
+        /// Returns the auto-generated device names
+        /// </summary>
+        public List<string> PreConnect(string instanceName, string deviceSetName, int numDevices, IBackupDatabase dbComponent, string dbConfig, bool isBackup)
         {
             string dataSource = string.IsNullOrEmpty(instanceName) ? "." : string.Format(@".\{0}", instanceName);
-            string connectionString = string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;", dataSource);
+            string connectionString = string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;Asynchronous Processing=true;", dataSource);
             Console.Write("Connecting: ");
             Console.WriteLine(connectionString);
             mCnn = new SqlConnection(connectionString);
             mCnn.Open();
 
+            List<string> deviceNames = new List<string>(numDevices);
+            deviceNames.Add(deviceSetName);
+            for (int i = 1; i < numDevices; i++)
+            {
+                deviceNames.Add(string.Format("dev{0}", i));
+            }
 
             mCmd = new SqlCommand();
             mCmd.Connection = mCnn;
             mCmd.CommandTimeout = 0;
             if (isBackup)
             {
-                dbComponent.ConfigureBackupCommand(dbConfig, deviceName, mCmd);
+                dbComponent.ConfigureBackupCommand(dbConfig, deviceNames, mCmd);
             }
             else
             {
-                dbComponent.ConfigureRestoreCommand(dbConfig, deviceName, mCmd);
+                dbComponent.ConfigureRestoreCommand(dbConfig, deviceNames, mCmd);
             }
 
-        }
-        public void ConnectInAnoterThread()
-        {
-            ThreadStart job = new ThreadStart(ThreadStart);
-            mThread = new Thread(job);
-            mThread.Start();
-        }
-        public Exception WaitForCompletion()
-        {
-            mThread.Join();
-            return mException;
-        }
+            return deviceNames;
 
-
-        private void ThreadStart()
+        }
+        public void BeginExecute()
+        {
+            mAsyncResult = mCmd.BeginExecuteNonQuery();
+        }
+        public Exception EndExecute()
         {
             try
             {
-
-
-                Console.WriteLine("Executing:");
-                Console.WriteLine(mCmd.CommandText);
-
-                mCmd.ExecuteNonQuery();
-
+                mCmd.EndExecuteNonQuery(mAsyncResult);
+                return null;
             }
             catch (Exception e)
             {
-                mException = e;
+                return e;
             }
         }
+
 
         public void Dispose()
         {
