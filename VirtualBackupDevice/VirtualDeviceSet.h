@@ -52,6 +52,9 @@ namespace VirtualBackupDevice
 
 		void Close();
 
+		//void OpenInSecondaryEx(String^ instanceName, String^ setName);
+
+
 	private:
 		enum class VirtualDeviceSetState
 		{

@@ -25,9 +25,20 @@ namespace VirtualBackupDevice
 {
 	public enum class DeviceCommandType
 	{
-		Read,
-		Write,
-		ClearError,
-		Flush
+		Read = VDC_Read,
+		Write = VDC_Write,
+		ClearError = VDC_ClearError,
+		Rewind = VDC_Rewind,
+		WriteMark = VDC_WriteMark,
+		SkipMarks = VDC_SkipMarks,
+		SkipBlocks = VDC_SkipBlocks,
+		Load = VDC_Load,
+		GetPosition = VDC_GetPosition,
+		SetPosition = VDC_SetPosition,
+		Discard = VDC_Discard,
+		Flush = VDC_Flush,
+		Snapshot = VDC_Snapshot,
+		PrepareToFreeze = VDC_PrepareToFreeze,
+		MountSnapshot = VDC_MountSnapshot
 	};
 }

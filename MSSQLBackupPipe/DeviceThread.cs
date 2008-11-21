@@ -99,69 +99,68 @@ namespace MSSQLBackupPipe
         private static void ReadWriteData(VirtualDevice device, CommandBuffer buff, Stream stream, bool isBackup)
         {
 
-            bool ignore;
-            while (device.GetCommand(null, buff, out ignore))
+            bool timedOut;
+            while (device.GetCommand(null, buff, out timedOut))
             {
-
-                CompletionCode completionCode = CompletionCode.DISK_FULL;
-                uint bytesTransferred = 0;
-
-                try
+                if (!timedOut)
                 {
+                    CompletionCode completionCode = CompletionCode.DISK_FULL;
+                    uint bytesTransferred = 0;
 
-                    switch (buff.GetCommandType())
+                    try
                     {
-                        case DeviceCommandType.Write:
 
-                            if (!isBackup)
-                            {
-                                throw new InvalidOperationException("Cannot write in 'restore' mode");
-                            }
+                        switch (buff.CommandType)
+                        {
+                            case DeviceCommandType.Write:
 
-                            stream.Write(buff.GetBuffer(), 0, (int)buff.GetCount());
-                            bytesTransferred = buff.GetCount();
+                                if (!isBackup)
+                                {
+                                    throw new InvalidOperationException("Cannot write in 'restore' mode");
+                                }
 
-                            completionCode = CompletionCode.SUCCESS;
+                                bytesTransferred = (uint)buff.WriteToStream(stream);
 
-                            break;
-                        case DeviceCommandType.Read:
-
-                            if (isBackup)
-                            {
-                                throw new InvalidOperationException("Cannot read in 'backup' mode");
-                            }
-
-                            byte[] buffArray = buff.GetBuffer();
-                            bytesTransferred = (uint)stream.Read(buffArray, 0, (int)buff.GetCount());
-                            buff.SetBuffer(buffArray, bytesTransferred);
-
-                            if (bytesTransferred > 0)
-                            {
                                 completionCode = CompletionCode.SUCCESS;
-                            }
-                            else
-                            {
-                                completionCode = CompletionCode.HANDLE_EOF;
-                            }
 
-                            break;
-                        case DeviceCommandType.ClearError:
-                            completionCode = CompletionCode.SUCCESS;
-                            break;
+                                break;
+                            case DeviceCommandType.Read:
 
-                        case DeviceCommandType.Flush:
-                            // TODO: should we flush?
-                            //stream.Flush();
-                            completionCode = CompletionCode.SUCCESS;
-                            break;
+                                if (isBackup)
+                                {
+                                    throw new InvalidOperationException("Cannot read in 'backup' mode");
+                                }
 
+                                bytesTransferred = (uint)buff.ReadFromStream(stream);
+
+                                if (bytesTransferred > 0)
+                                {
+                                    completionCode = CompletionCode.SUCCESS;
+                                }
+                                else
+                                {
+                                    completionCode = CompletionCode.HANDLE_EOF;
+                                }
+
+                                break;
+                            case DeviceCommandType.ClearError:
+                                completionCode = CompletionCode.SUCCESS;
+                                break;
+
+                            case DeviceCommandType.Flush:
+                                stream.Flush();
+                                completionCode = CompletionCode.SUCCESS;
+                                break;
+
+                            default:
+                                throw new ArgumentException(string.Format("Unknown command: {0}", buff.CommandType));
+                        }
+                    }
+                    finally
+                    {
+                        device.CompleteCommand(buff, completionCode, bytesTransferred, (ulong)0);
                     }
                 }
-                finally
-                {
-                    device.CompleteCommand(buff, completionCode, bytesTransferred, (ulong)0);
-                }
-
 
             }
         }

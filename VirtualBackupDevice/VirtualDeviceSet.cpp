@@ -113,7 +113,7 @@ namespace VirtualBackupDevice
 		DWORD dwTimeOut = INFINITE;
 		if (timeOut.HasValue) 
 		{
-			dwTimeOut = (DWORD)Convert::ToUInt64(timeOut.Value.TotalMilliseconds);
+			dwTimeOut = Convert::ToUInt32(timeOut.Value.TotalMilliseconds);
 		}
 
 		VDConfig vDConfig;

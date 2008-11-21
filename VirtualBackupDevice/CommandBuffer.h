@@ -28,6 +28,7 @@
 #include "DeviceCommandType.h"
 
 
+using namespace System::IO;
 
 
 
@@ -35,14 +36,44 @@
 namespace VirtualBackupDevice 
 {
 
+	//public class enum DeviceCommandType
+	//{
+
+	//}
+
 	public ref class CommandBuffer
 	{
 	public:
 		CommandBuffer();
-		array<unsigned char>^ GetBuffer();
-		void SetBuffer(array<unsigned char>^ buff, UINT32 count);
-		UINT32 GetCount();
-		DeviceCommandType GetCommandType();
+		int WriteToStream(Stream^ s);
+		//int WriteToBuffer(array<unsigned char>^ buff, int offset, int count);
+		int ReadFromStream(Stream^ s);
+		//void ReadFromBuffer(array<unsigned char>^ buff, int offset, int count);
+
+
+		property DeviceCommandType CommandType
+		{
+			DeviceCommandType get()
+			{
+				return (DeviceCommandType)mCmd->commandCode;
+			}
+		}
+
+		property UINT64 Position
+		{
+			UINT64 get()
+			{
+				return mCmd->position;
+			}
+		}
+
+		property UINT32 Size
+		{
+			UINT32 get()
+			{
+				return mCmd->size;
+			}
+		}
 
 	internal:
 		void SetCommand(VDC_Command* cmd);

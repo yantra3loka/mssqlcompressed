@@ -35,68 +35,53 @@ namespace VirtualBackupDevice
 		mCachedBuffer = gcnew array<unsigned char>(0);
 	}
 
+
+
+	int CommandBuffer::WriteToStream(Stream^ s)
+	{
+		int count = (int)mCmd->size;
+		s->Write(mCachedBuffer, 0, count);
+		return count;
+	}
+
+
+
+
+	int CommandBuffer::ReadFromStream(Stream^ s)
+	{
+		if ((UINT32)(mCachedBuffer->Length) < mCmd->size)
+		{
+			mCachedBuffer = gcnew array<unsigned char>(mCmd->size);
+		}
+
+		int count = s->Read(mCachedBuffer, 0, mCmd->size);
+
+		IntPtr buffIp(mCmd->buffer);
+
+		Marshal::Copy(mCachedBuffer, 0, buffIp, count);
+
+		return count;
+	}
+
+
+
+
 	void CommandBuffer::SetCommand(VDC_Command* cmd)
 	{
 		mCmd = cmd;
 
 
 
-		if (mCachedBuffer->Length < (int)GetCount())
+		if ((UINT32)(mCachedBuffer->Length) < mCmd->size)
 		{
 			mCachedBuffer = gcnew array<unsigned char>(cmd->size);
 		}
 
-		if (cmd->size > 0) 
+		if (mCmd->size > 0) 
 		{
-			IntPtr buffIp(cmd->buffer);
+			IntPtr buffIp(mCmd->buffer);
 
-			Marshal::Copy(buffIp, mCachedBuffer, 0, cmd->size);
-		}
-	}
-
-	array<unsigned char>^ CommandBuffer::GetBuffer()
-	{
-		return mCachedBuffer;
-	}
-
-	void CommandBuffer::SetBuffer(array<unsigned char>^ buff, UINT32 count)
-	{
-
-		if (mCmd->size < (UINT32)count) 
-		{
-			throw gcnew System::ArgumentException("The buffer is too small.");
-		}
-
-		mCachedBuffer = buff;
-
-		
-		IntPtr buffIp(mCmd->buffer);
-
-		Marshal::Copy(mCachedBuffer, 0, buffIp, count);
-
-	}
-
-
-
-	UINT32 CommandBuffer::GetCount()
-	{
-		return (UINT32)mCmd->size;
-	}
-
-	DeviceCommandType CommandBuffer::GetCommandType()
-	{
-		switch(mCmd->commandCode)
-		{
-		case VDC_Write:
-			return DeviceCommandType::Write;
-		case VDC_Read:
-			return DeviceCommandType::Read;
-		case VDC_Flush:
-			return DeviceCommandType::Flush;
-		case VDC_ClearError:
-			return DeviceCommandType::ClearError;
-		default:
-			throw gcnew ArgumentException(String::Format("Unsupported command: {0}", mCmd->commandCode));
+			Marshal::Copy(buffIp, mCachedBuffer, 0, mCmd->size);
 		}
 	}
 

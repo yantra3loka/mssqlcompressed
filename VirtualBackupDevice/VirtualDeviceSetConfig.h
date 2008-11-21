@@ -26,21 +26,52 @@ using namespace System;
 
 namespace VirtualBackupDevice 
 {
+	
+
+	[Flags]
+	public enum class Feature : int
+	{
+		Nothing = 0,
+		Removable = VDF_Removable,
+		FileMarks=VDF_FileMarks,
+		RandomAccess =VDF_RandomAccess ,
+		Rewind = VDF_Rewind,
+		Position = VDF_Position,
+		SkipBlocks = VDF_SkipBlocks,
+		ReversePosition = VDF_ReversePosition,
+		Discard = VDF_Discard,
+		SnapshotPrepare = VDF_SnapshotPrepare,
+		WriteMedia = VDF_WriteMedia,
+		ReadMedia = VDF_ReadMedia
+	};
+
+
+
 	public ref class VirtualDeviceSetConfig
 	{
 	public:
 		VirtualDeviceSetConfig(void);
 
 		UINT32 DeviceCount;
-		UINT32 Features;
+		Feature Features;
 		UINT32 PrefixZoneSize;
 		UINT32 Alignment;
 		UINT32 SoftFileMarkBlockSize;
 		UINT32 EomWarningSize;
 		Nullable<TimeSpan> ServerTimeOut;
 
-
+		
+	internal:
 		void CopyTo(VDConfig* config);
 		void CopyFrom(const VDConfig* config);
+	};
+
+
+	public ref class FeatureSet 
+	{
+	public:
+		static Feature PipeLike = Feature::Nothing;
+		static Feature TapeLike = Feature::FileMarks | Feature::Removable | Feature::ReversePosition | Feature::Rewind | Feature::Position | Feature::SkipBlocks;
+		static Feature DiskLike = Feature::RandomAccess;
 	};
 }

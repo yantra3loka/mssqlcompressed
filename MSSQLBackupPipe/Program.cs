@@ -204,6 +204,7 @@ namespace MSSQLBackupPipe
                         {
 
                             VirtualDeviceSetConfig config = new VirtualDeviceSetConfig();
+                            config.Features = FeatureSet.PipeLike;
                             config.DeviceCount = (uint)topOfPilelines.Count;
                             deviceSet.CreateEx(instanceName, deviceSetName, config);
                             sql.BeginExecute();

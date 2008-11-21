@@ -28,7 +28,7 @@ namespace VirtualBackupDevice
 	VirtualDeviceSetConfig::VirtualDeviceSetConfig(void)
 	{
 		DeviceCount = 0;
-		Features = 0;
+		Features = FeatureSet::PipeLike;
 		PrefixZoneSize = 0;
 		Alignment = 0;
 		SoftFileMarkBlockSize = 0;
@@ -44,7 +44,7 @@ namespace VirtualBackupDevice
 		config->blockSize = 0;
 		config->bufferAreaSize = 0;
 		config->EOMWarningSize = this->EomWarningSize;
-		config->features = this->Features;
+		config->features = (UINT32)this->Features;
 		config->maxIODepth = 0;
 		config->maxTransferSize = 0;
 		config->prefixZoneSize = this->PrefixZoneSize;
@@ -65,7 +65,7 @@ namespace VirtualBackupDevice
 		this->DeviceCount = config->deviceCount;
 		this->Alignment = config->alignment;
 		this->EomWarningSize = config->EOMWarningSize;
-		this->Features = config->features;
+		this->Features = (Feature)(int)config->features;
 		this->PrefixZoneSize = config->prefixZoneSize;
 		if (config->serverTimeOut == 0) 
 		{

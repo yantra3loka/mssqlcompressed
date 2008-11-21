@@ -33,9 +33,11 @@ namespace VirtualBackupDevice
 	public:
 
 
-		// errors throw an exception
-		// EOF returns false
-		// timeouts return true and set timeOutOccurred to true
+		///<summary>
+		/// errors throw an exception
+		/// EOF returns false
+		/// timeouts return true and set timeOutOccurred to true
+		///</summary>
 		bool GetCommand(Nullable<TimeSpan> timeOut, CommandBuffer^ cBuff, [Out] bool% timeOutOccurred);
 
 		void CompleteCommand(CommandBuffer^ cBuff, CompletionCode completionCode, UINT32 dwBytesTransferred, UINT64 dwlPosition);
