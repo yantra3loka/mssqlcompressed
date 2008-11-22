@@ -32,7 +32,7 @@ namespace VirtualBackupDevice
 	CommandBuffer::CommandBuffer(void)
 	{
 		mCmd = NULL;
-		mCachedBuffer = gcnew array<unsigned char>(0);
+		mCachedArray = gcnew array<unsigned char>(0);
 	}
 
 
@@ -40,49 +40,96 @@ namespace VirtualBackupDevice
 	int CommandBuffer::WriteToStream(Stream^ s)
 	{
 		int count = (int)mCmd->size;
-		s->Write(mCachedBuffer, 0, count);
+
+		IncreaseCachedArraySize(count);
+
+		WriteToArray(mCachedArray, count);
+
+		s->Write(mCachedArray, 0, count);
+
 		return count;
 	}
 
+	void CommandBuffer::WriteToArray(array<unsigned char>^ ary, int count)
+	{
+		if (count < 0) 
+		{
+			throw gcnew System::ArgumentException("count must be non-negative.");
+		}
+
+		if (ary->Length < count) 
+		{
+			throw gcnew System::IndexOutOfRangeException("Cannot write past the end of parameter 'ary'.");
+		}
+
+		
+		if (mCmd->size != (UINT32)count) 
+		{
+			throw gcnew System::ArgumentException("The count parameter must be equal to the Size property of CommandBuffer.");
+		}
 
 
+		if (count > 0) 
+		{
+			IntPtr buffIp(mCmd->buffer);
+
+			Marshal::Copy(buffIp, ary, 0, count);
+		}
+
+	}
+
+	void CommandBuffer::IncreaseCachedArraySize(int minSize)
+	{
+		if (mCachedArray->Length < minSize)
+		{
+			mCachedArray = gcnew array<unsigned char>(minSize);
+		}
+	}
 
 	int CommandBuffer::ReadFromStream(Stream^ s)
 	{
-		if ((UINT32)(mCachedBuffer->Length) < mCmd->size)
-		{
-			mCachedBuffer = gcnew array<unsigned char>(mCmd->size);
-		}
+		int cmdCount = (int)mCmd->size;
 
-		int count = s->Read(mCachedBuffer, 0, mCmd->size);
+		IncreaseCachedArraySize(cmdCount);
 
-		IntPtr buffIp(mCmd->buffer);
+		int count = s->Read(mCachedArray, 0, cmdCount);
 
-		Marshal::Copy(mCachedBuffer, 0, buffIp, count);
+		ReadFromArray(mCachedArray, count);
 
 		return count;
 	}
 
 
+	void CommandBuffer::ReadFromArray(array<unsigned char>^ ary, int count)
+	{
+		if (count < 0) 
+		{
+			throw gcnew System::ArgumentException("count must be non-negative.");
+		}
+
+		if (ary->Length < count) 
+		{
+			throw gcnew System::IndexOutOfRangeException("Cannot read past the end of parameter 'ary'.");
+		}
+
+		
+		if (mCmd->size < (UINT32)count) 
+		{
+			throw gcnew System::ArgumentException("The count parameter must less than or equal to the Size property of CommandBuffer.");
+		}
+
+
+
+		IntPtr buffIp(mCmd->buffer);
+
+		Marshal::Copy(ary,0, buffIp, count);
+
+	}
 
 
 	void CommandBuffer::SetCommand(VDC_Command* cmd)
 	{
 		mCmd = cmd;
-
-
-
-		if ((UINT32)(mCachedBuffer->Length) < mCmd->size)
-		{
-			mCachedBuffer = gcnew array<unsigned char>(cmd->size);
-		}
-
-		if (mCmd->size > 0) 
-		{
-			IntPtr buffIp(mCmd->buffer);
-
-			Marshal::Copy(buffIp, mCachedBuffer, 0, mCmd->size);
-		}
 	}
 
 	VDC_Command* CommandBuffer::GetCommand()

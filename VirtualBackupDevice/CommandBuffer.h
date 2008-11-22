@@ -46,9 +46,7 @@ namespace VirtualBackupDevice
 	public:
 		CommandBuffer();
 		int WriteToStream(Stream^ s);
-		//int WriteToBuffer(array<unsigned char>^ buff, int offset, int count);
 		int ReadFromStream(Stream^ s);
-		//void ReadFromBuffer(array<unsigned char>^ buff, int offset, int count);
 
 
 		property DeviceCommandType CommandType
@@ -81,7 +79,13 @@ namespace VirtualBackupDevice
 
 	private:
 		VDC_Command* mCmd;
-		array<unsigned char>^ mCachedBuffer;
+		array<unsigned char>^ mCachedArray;
+
+		void IncreaseCachedArraySize(int minSize);
+
+		// maybe these should be public one day:
+		void WriteToArray(array<unsigned char>^ ary, int count);
+		void ReadFromArray(array<unsigned char>^ ary, int count);
 
 	};
 }
