@@ -20,9 +20,11 @@ list plugins
 roadmap:
 gui
 when overwriting a file, don't destroy/recreate, but overwrite in place to preserve a defraged file.
-striped backups
 encryption plugin
 ftp plugin
 7z plugin
 zip plugin
+
+done:
+striped backups
 make it SQL 2000 compatible.
