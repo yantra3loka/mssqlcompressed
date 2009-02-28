@@ -197,7 +197,8 @@ namespace MSSQLBackupPipe
                     using (SqlThread sql = new SqlThread())
                     {
                         string instanceName = databaseComp.GetInstanceName(databaseConfig.ConfigString);
-                        List<string> deviceNames = sql.PreConnect(instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.ConfigString, isBackup);
+                        string clusterNetworkName = databaseComp.GetClusterNetworkName(databaseConfig.ConfigString);
+                        List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.ConfigString, isBackup);
 
                         using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.ConfigString) : storage.GetRestoreReader(storageConfig.ConfigString)))
                         using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup)))

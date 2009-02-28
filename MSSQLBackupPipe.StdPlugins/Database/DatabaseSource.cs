@@ -58,6 +58,10 @@ namespace MSSQLBackupPipe.StdPlugins.Database
             parsedArrayConfig.Remove("instancename");
             parsedConfig.Remove("instancename");
 
+            // ClusterNetworkName is ignored in the method
+            parsedArrayConfig.Remove("ClusterNetworkName");
+            parsedConfig.Remove("ClusterNetworkName");
+
             // default values:
             BackupType backupType = BackupType.Full;
 
@@ -240,6 +244,22 @@ namespace MSSQLBackupPipe.StdPlugins.Database
         }
 
 
+        public string GetClusterNetworkName(string config)
+        {
+            Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config, "file", "filegroup", "move");
+
+            string clusterNetworkName = null;
+
+            if (parsedConfig.ContainsKey("ClusterNetworkName"))
+            {
+                clusterNetworkName = parsedConfig["ClusterNetworkName"];
+            }
+
+
+            return clusterNetworkName;
+        }
+
+
         public void ConfigureRestoreCommand(string config, List<string> deviceNames, SqlCommand cmd)
         {
             Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config, "FILE", "FILEGROUP", "MOVE");
@@ -263,6 +283,10 @@ namespace MSSQLBackupPipe.StdPlugins.Database
             parsedArrayConfig.Remove("instancename");
             parsedConfig.Remove("instancename");
 
+
+            // ClusterNetworkName is ignored in the method
+            parsedArrayConfig.Remove("ClusterNetworkName");
+            parsedConfig.Remove("ClusterNetworkName");
 
             // default values:
             RestoreType restoreType = RestoreType.Database;
@@ -599,6 +623,7 @@ namespace MSSQLBackupPipe.StdPlugins.Database
 want to connect to localhost\sqlexpress, then enter instance=sqlexpress above.
 If no instancename parameter is given, then it will connect to the default 
 instance.
+If you have a cluster, please see the online documentation about the ClusterNetworkName option.
 
 This plugin can only connect to SQL Server locally.
 

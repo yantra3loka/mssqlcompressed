@@ -40,9 +40,10 @@ namespace MSSQLBackupPipe
         /// <summary>
         /// Returns the auto-generated device names
         /// </summary>
-        public List<string> PreConnect(string instanceName, string deviceSetName, int numDevices, IBackupDatabase dbComponent, string dbConfig, bool isBackup)
+        public List<string> PreConnect(string clusterNetworkName, string instanceName, string deviceSetName, int numDevices, IBackupDatabase dbComponent, string dbConfig, bool isBackup)
         {
-            string dataSource = string.IsNullOrEmpty(instanceName) ? "." : string.Format(@".\{0}", instanceName);
+            string serverConnectionName = clusterNetworkName == null ? "." : clusterNetworkName;
+            string dataSource = string.IsNullOrEmpty(instanceName) ? serverConnectionName : string.Format(@"{0}\{1}", serverConnectionName, instanceName);
             string connectionString = string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;Asynchronous Processing=true;", dataSource);
             Console.Write("Connecting: ");
             Console.WriteLine(connectionString);

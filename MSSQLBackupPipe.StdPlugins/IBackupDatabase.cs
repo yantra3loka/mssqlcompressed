@@ -30,5 +30,6 @@ namespace MSSQLBackupPipe.StdPlugins
         void ConfigureBackupCommand(string config, List<string> deviceNames, SqlCommand cmd);
         void ConfigureRestoreCommand(string config, List<string> deviceNames, SqlCommand cmd);
         string GetInstanceName(string config);
+        string GetClusterNetworkName(string config);
     }
 }
