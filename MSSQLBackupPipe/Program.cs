@@ -28,6 +28,7 @@ using System.Reflection;
 
 using VirtualBackupDevice;
 using MSSQLBackupPipe.StdPlugins;
+using System.Diagnostics;
 
 namespace MSSQLBackupPipe
 {
@@ -35,6 +36,10 @@ namespace MSSQLBackupPipe
     {
         static int Main(string[] args)
         {
+
+#if DEBUG
+            Debugger.Launch();
+#endif
 
             try
             {
@@ -138,8 +143,7 @@ namespace MSSQLBackupPipe
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
-                //Console.WriteLine(e.StackTrace);
+                Util.WriteError(e);
 
                 Exception ie = e;
                 while (ie.InnerException != null)
@@ -194,67 +198,91 @@ namespace MSSQLBackupPipe
                 //NotifyWhenReady notifyWhenReady = new NotifyWhenReady(deviceName, isBackup);
                 using (VirtualDeviceSet deviceSet = new VirtualDeviceSet())
                 {
+
                     using (SqlThread sql = new SqlThread())
                     {
-                        string instanceName = databaseComp.GetInstanceName(databaseConfig.ConfigString);
-                        string clusterNetworkName = databaseComp.GetClusterNetworkName(databaseConfig.ConfigString);
-                        List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.ConfigString, isBackup);
-
-                        using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.ConfigString) : storage.GetRestoreReader(storageConfig.ConfigString)))
-                        using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup)))
+                        bool sqlStarted = false;
+                        bool sqlFinished = false;
+                        try
                         {
 
-                            VirtualDeviceSetConfig config = new VirtualDeviceSetConfig();
-                            config.Features = FeatureSet.PipeLike;
-                            config.DeviceCount = (uint)topOfPilelines.Count;
-                            deviceSet.CreateEx(instanceName, deviceSetName, config);
-                            sql.BeginExecute();
-                            deviceSet.GetConfiguration(TimeSpan.FromMinutes(10));
-                            List<VirtualDevice> devices = new List<VirtualDevice>();
+                            string instanceName = databaseComp.GetInstanceName(databaseConfig.ConfigString);
+                            string clusterNetworkName = databaseComp.GetClusterNetworkName(databaseConfig.ConfigString);
+                            List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.ConfigString, isBackup);
 
-                            foreach (string devName in deviceNames)
+                            using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.ConfigString) : storage.GetRestoreReader(storageConfig.ConfigString)))
+                            using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup)))
                             {
-                                devices.Add(deviceSet.OpenDevice(devName));
-                            }
 
-                            using (DisposableList<DeviceThread> threads = new DisposableList<DeviceThread>(devices.Count))
-                            {
-                                for (int i = 0; i < devices.Count; i++)
-                                {
-                                    DeviceThread dThread = new DeviceThread();
-                                    threads.Add(dThread);
-                                    dThread.Initialize(isBackup, topOfPilelines[i], devices[i], deviceSet);
-                                }
-                                foreach (DeviceThread dThread in threads)
-                                {
-                                    dThread.BeginCopy();
-                                }
+                                VirtualDeviceSetConfig config = new VirtualDeviceSetConfig();
+                                config.Features = FeatureSet.PipeLike;
+                                config.DeviceCount = (uint)topOfPilelines.Count;
+                                deviceSet.CreateEx(instanceName, deviceSetName, config);
+                                sql.BeginExecute();
+                                sqlStarted = true;
+                                deviceSet.GetConfiguration(TimeSpan.FromMinutes(1));
+                                List<VirtualDevice> devices = new List<VirtualDevice>();
 
-                                bool hasException = false;
-
-                                Exception sqlE = sql.EndExecute();
-                                if (sqlE != null)
+                                foreach (string devName in deviceNames)
                                 {
-                                    Console.WriteLine(sqlE.Message);
-                                    //Console.WriteLine(e.StackTrace);
-                                    hasException = true;
+                                    devices.Add(deviceSet.OpenDevice(devName));
                                 }
 
-                                foreach (DeviceThread dThread in threads)
+                                using (DisposableList<DeviceThread> threads = new DisposableList<DeviceThread>(devices.Count))
                                 {
-                                    Exception devE = dThread.EndCopy();
-                                    if (devE != null)
+                                    for (int i = 0; i < devices.Count; i++)
                                     {
-                                        Console.WriteLine(devE.Message);
+                                        DeviceThread dThread = new DeviceThread();
+                                        threads.Add(dThread);
+                                        dThread.Initialize(isBackup, topOfPilelines[i], devices[i], deviceSet);
+                                    }
+                                    foreach (DeviceThread dThread in threads)
+                                    {
+                                        dThread.BeginCopy();
+                                    }
+
+                                    bool hasException = false;
+
+                                    Console.WriteLine(string.Format("{0} started", isBackup ? "Backup" : "Restore"));
+
+                                    Exception sqlE = sql.EndExecute();
+                                    sqlFinished = true;
+                                    if (sqlE != null)
+                                    {
+                                        Util.WriteError(sqlE);
                                         //Console.WriteLine(e.StackTrace);
                                         hasException = true;
                                     }
+
+                                    foreach (DeviceThread dThread in threads)
+                                    {
+                                        Exception devE = dThread.EndCopy();
+                                        if (devE != null)
+                                        {
+                                            Console.WriteLine(devE.Message);
+                                            //Console.WriteLine(e.StackTrace);
+                                            hasException = true;
+                                        }
+                                    }
+
+
+                                    if (!hasException)
+                                    {
+                                        success = true;
+                                    }
                                 }
-
-
-                                if (!hasException)
+                            }
+                        }
+                        finally
+                        {
+                            if (sqlStarted && !sqlFinished)
+                            {
+                                Exception sqlE = sql.EndExecute();
+                                sqlFinished = true;
+                                if (sqlE != null)
                                 {
-                                    success = true;
+                                    Util.WriteError(sqlE);
+                                    success = false;
                                 }
                             }
                         }
@@ -263,7 +291,8 @@ namespace MSSQLBackupPipe
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
+                success = false;
+                Util.WriteError(e);
                 storage.CleanupOnAbort();
             }
 
@@ -449,7 +478,7 @@ namespace MSSQLBackupPipe
 
 
 
-        private static Stream[] CreatePipeline(List<ConfigPair> pipelineConfig, List<Stream> fileStreams, bool isBackup)
+        private static Stream[] CreatePipeline(List<ConfigPair> pipelineConfig, IList<Stream> fileStreams, bool isBackup)
         {
             List<Stream> result = new List<Stream>(fileStreams.Count);
 

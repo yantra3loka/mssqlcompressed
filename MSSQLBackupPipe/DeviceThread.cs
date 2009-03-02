@@ -196,11 +196,13 @@ namespace MSSQLBackupPipe
 
                     mDeviceSet = null;
 
-                    if (mTopOfPipeline != null)
-                    {
-                        mTopOfPipeline.Dispose();
-                        mTopOfPipeline = null;
-                    }
+                    // the Program class will dispose of the streams
+
+                    //if (mTopOfPipeline != null)
+                    //{
+                    //    mTopOfPipeline.Dispose();
+                    //    mTopOfPipeline = null;
+                    //}
                 }
 
                 // There are no unmanaged resources to release, but

@@ -36,7 +36,7 @@ namespace VirtualBackupDevice
 		HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
 		if (!SUCCEEDED(hr)) 
 		{
-			throw gcnew System::InvalidProgramException(String::Format("Failed to Coinit: x{0}", hr));
+			throw gcnew System::InvalidProgramException(String::Format("Failed to Coinit: x{0:X}", hr));
 		}
 
 
@@ -45,7 +45,7 @@ namespace VirtualBackupDevice
 		mVds = vds;
 		if (!SUCCEEDED(hr)) 
 		{
-			throw gcnew System::InvalidProgramException(String::Format("Could not create an instance: CLSID_MSSQL_ClientVirtualDeviceSet, x{0}", hr));
+			throw gcnew System::InvalidProgramException(String::Format("Could not create an instance: CLSID_MSSQL_ClientVirtualDeviceSet, x{0:X}", hr));
 		}
 	}
 
@@ -87,7 +87,7 @@ namespace VirtualBackupDevice
 		HRESULT hr = mVds->CreateEx(sInstanceName.ToPointer(), sDeviceSetName.ToPointer(), &vDConfig);
 		if (!SUCCEEDED(hr)) 
 		{
-			throw gcnew System::InvalidProgramException(String::Format("VDS::Create failed: x{0}", hr));
+			throw gcnew System::InvalidProgramException(String::Format("VDS::Create failed: x{0:X}", hr));
 		}
 
 		mDeviceSetState = VirtualDeviceSetState::Configurable;
@@ -122,7 +122,7 @@ namespace VirtualBackupDevice
 		HRESULT hr = mVds->GetConfiguration(dwTimeOut, &vDConfig);
 		if (!SUCCEEDED(hr)) 
 		{
-			throw gcnew System::InvalidProgramException(String::Format("VDS::GetConfiguration failed: x{0}", hr));
+			throw gcnew System::InvalidProgramException(String::Format("VDS::GetConfiguration failed: x{0:X}", hr));
 		}
 
 		VirtualDeviceSetConfig^ config = gcnew VirtualDeviceSetConfig();
@@ -154,7 +154,7 @@ namespace VirtualBackupDevice
 		HRESULT hr = mVds->OpenDevice(sDeviceName.ToPointer(), &ppVirtualDevice);
 		if (!SUCCEEDED(hr)) 
 		{
-			throw gcnew System::InvalidProgramException(String::Format("VDS::SignalAbort failed: x{0}", hr));
+			throw gcnew System::InvalidProgramException(String::Format("VDS::SignalAbort failed: x{0:X}", hr));
 		}
 
 		VirtualDevice^ result = gcnew VirtualDevice(ppVirtualDevice);
@@ -175,7 +175,7 @@ namespace VirtualBackupDevice
 		HRESULT hr = mVds->SignalAbort();
 		if (!SUCCEEDED(hr)) 
 		{
-			throw gcnew System::InvalidProgramException(String::Format("VDS::SignalAbort failed: x{0}", hr));
+			throw gcnew System::InvalidProgramException(String::Format("VDS::SignalAbort failed: x{0:X}", hr));
 		}
 
 		mDeviceSetState = VirtualDeviceSetState::AbnormallyTerminated;
@@ -193,7 +193,7 @@ namespace VirtualBackupDevice
 		HRESULT hr = mVds->Close();
 		if (!SUCCEEDED(hr)) 
 		{
-			throw gcnew System::InvalidProgramException(String::Format("VDS::Close failed: x{0}", hr));
+			throw gcnew System::InvalidProgramException(String::Format("VDS::Close failed: x{0:X}", hr));
 		}
 
 		if (mDeviceSetState == VirtualDeviceSetState::AbnormallyTerminated || mDeviceSetState == VirtualDeviceSetState::NormallyTerminated)
