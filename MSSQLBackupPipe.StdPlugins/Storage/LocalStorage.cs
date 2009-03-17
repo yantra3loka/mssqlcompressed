@@ -27,8 +27,8 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
 {
     public class LocalStorage : IBackupStorage
     {
-        private List<bool> mDeleteOnAbort;
-        private List<FileInfo> mFileInfosToDeleteOnAbort;
+        private List<bool> mDeleteOnAbort = new List<bool>();
+        private List<FileInfo> mFileInfosToDeleteOnAbort = new List<FileInfo>();
 
         #region IBackupStorage Members
 
@@ -53,6 +53,10 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
 
         public Stream[] GetBackupWriter(string config)
         {
+
+            mDeleteOnAbort.Clear();
+            mFileInfosToDeleteOnAbort.Clear();
+
             Dictionary<string, List<string>> parsedConfig = ConfigUtil.ParseArrayConfig(config);
 
             if (!parsedConfig.ContainsKey("path"))
@@ -74,7 +78,7 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
 
             for (int i = 0; i < mDeleteOnAbort.Count; i++)
             {
-                mDeleteOnAbort[i] = fileInfos[i].Exists;
+                mDeleteOnAbort[i] = !fileInfos[i].Exists;
             }
 
 
@@ -100,10 +104,9 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
 
         public Stream[] GetRestoreReader(string config)
         {
-            for (int i = 0; i < mDeleteOnAbort.Count; i++)
-            {
-                mDeleteOnAbort[i] = false;
-            }
+
+            mDeleteOnAbort.Clear();
+            mFileInfosToDeleteOnAbort.Clear();
 
 
             Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
@@ -143,19 +146,18 @@ to local(path=c:\model.bak).
 
         public void CleanupOnAbort()
         {
-            if (mFileInfosToDeleteOnAbort != null)
+
+            for (int i = 0; i < mFileInfosToDeleteOnAbort.Count; i++)
             {
-                for (int i = 0; i < mFileInfosToDeleteOnAbort.Count; i++)
+                FileInfo fi = mFileInfosToDeleteOnAbort[i];
+                bool deleteOnAbort = mDeleteOnAbort[i];
+                if (deleteOnAbort && fi != null)
                 {
-                    FileInfo fi = mFileInfosToDeleteOnAbort[i];
-                    bool deleteOnAbort = mDeleteOnAbort[i];
-                    if (deleteOnAbort && fi != null)
-                    {
-                        fi.Delete();
-                    }
+                    fi.Delete();
                 }
-                mFileInfosToDeleteOnAbort = null;
             }
+            mFileInfosToDeleteOnAbort = null;
+
         }
 
         #endregion
