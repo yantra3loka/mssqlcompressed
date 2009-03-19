@@ -132,7 +132,7 @@ namespace MSSQLBackupPipe
 
                                 List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
 
-                                CommandLineNotifier notifier = new CommandLineNotifier(true);
+                                CommandLineNotifier notifier = new CommandLineNotifier(false);
 
                                 BackupPipeSystem.Restore(storageConfig, pipelineConfig, databaseConfig, notifier);
                                 return 0;
