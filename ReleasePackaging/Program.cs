@@ -36,8 +36,8 @@ namespace ReleasePackaging
         {
             try
             {
-                const string BETA_STRING = ""; // "beta";
-                const string VERSION_STRING = "1.1";
+                const string BETA_STRING = "beta"; // "beta";
+                const string VERSION_STRING = "1.2";
 
                 DirectoryInfo solutionDir = new DirectoryInfo(args[0]);
 
@@ -88,9 +88,9 @@ namespace ReleasePackaging
 
 
                 string redistArch = platformName == "x86" ? "x86" : "amd64";
-                string redistPath = string.Format(@"C:\Program Files\Microsoft Visual Studio 8\VC\Redist\{0}\Microsoft.VC80.CRT", redistArch);
+                string redistPath = string.Format(@"C:\Program Files\Microsoft Visual Studio 9.0\VC\redist\{0}\Microsoft.VC90.CRT", redistArch);
                 DirectoryInfo redistDir = new DirectoryInfo(redistPath);
-                string redistSubDirPath = new DirectoryInfo(zipSubDirPath).CreateSubdirectory("Microsoft.VC80.CRT").FullName;
+                string redistSubDirPath = new DirectoryInfo(zipSubDirPath).CreateSubdirectory("Microsoft.VC90.CRT").FullName;
 
                 foreach (FileInfo file in redistDir.GetFiles())
                 {
