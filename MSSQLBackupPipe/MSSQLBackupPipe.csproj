@@ -1,4 +1,4 @@
-﻿<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="3.5">
+﻿<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -11,11 +11,6 @@
     <AssemblyName>msbp</AssemblyName>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>MSSQLCompressedBackup.snk</AssemblyOriginatorKeyFile>
-    <FileUpgradeFlags>
-    </FileUpgradeFlags>
-    <OldToolsVersion>2.0</OldToolsVersion>
-    <UpgradeBackupLocation>
-    </UpgradeBackupLocation>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -40,15 +35,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ConfigPair.cs" />
-    <Compile Include="DeviceThread.cs" />
-    <Compile Include="DisposableList.cs" />
+    <Compile Include="CommandLineNotifier.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SqlThread.cs" />
     <Compile Include="Util.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\MSSQLBackupPipe.Common\MSSQLBackupPipe.Common.csproj">
+      <Project>{486443C8-A843-409A-8A23-EAC5325A5171}</Project>
+      <Name>MSSQLBackupPipe.Common</Name>
+    </ProjectReference>
     <ProjectReference Include="..\MSSQLBackupPipe.StdPlugins\MSSQLBackupPipe.StdPlugins.csproj">
       <Project>{FD720360-0D0F-410B-990E-36DE4BEB9F23}</Project>
       <Name>MSSQLBackupPipe.StdPlugins</Name>

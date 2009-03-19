@@ -24,9 +24,9 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace MSSQLBackupPipe
+namespace MSSQLBackupPipe.Common
 {
-    class ConfigPair
+    public class ConfigPair
     {
         public Type TransformationType;
         public string ConfigString;

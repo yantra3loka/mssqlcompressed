@@ -27,7 +27,7 @@ using System.Threading;
 
 using MSSQLBackupPipe.StdPlugins;
 
-namespace MSSQLBackupPipe
+namespace MSSQLBackupPipe.Common
 {
     class SqlThread : IDisposable
     {
@@ -40,13 +40,14 @@ namespace MSSQLBackupPipe
         /// <summary>
         /// Returns the auto-generated device names
         /// </summary>
-        public List<string> PreConnect(string clusterNetworkName, string instanceName, string deviceSetName, int numDevices, IBackupDatabase dbComponent, string dbConfig, bool isBackup)
+        public List<string> PreConnect(string clusterNetworkName, string instanceName, string deviceSetName, int numDevices, IBackupDatabase dbComponent, string dbConfig, bool isBackup, IUpdateNotification notifier)
         {
             string serverConnectionName = clusterNetworkName == null ? "." : clusterNetworkName;
             string dataSource = string.IsNullOrEmpty(instanceName) ? serverConnectionName : string.Format(@"{0}\{1}", serverConnectionName, instanceName);
             string connectionString = string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;Asynchronous Processing=true;", dataSource);
-            Console.Write("Connecting: ");
-            Console.WriteLine(connectionString);
+
+            notifier.OnConnecting(string.Format("Connecting: {0}", connectionString));
+
             mCnn = new SqlConnection(connectionString);
             mCnn.Open();
 

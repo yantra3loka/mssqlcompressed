@@ -25,10 +25,11 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.Reflection;
+using System.Diagnostics;
 
 using VirtualBackupDevice;
 using MSSQLBackupPipe.StdPlugins;
-using System.Diagnostics;
+using MSSQLBackupPipe.Common;
 
 namespace MSSQLBackupPipe
 {
@@ -45,9 +46,9 @@ namespace MSSQLBackupPipe
             {
 
 
-                Dictionary<string, Type> pipelineComponents = LoadComponents("IBackupTransformer");
-                Dictionary<string, Type> databaseComponents = LoadComponents("IBackupDatabase");
-                Dictionary<string, Type> storageComponents = LoadComponents("IBackupStorage");
+                Dictionary<string, Type> pipelineComponents = BackupPipeSystem.LoadTransformComponents();
+                Dictionary<string, Type> databaseComponents = BackupPipeSystem.LoadDatabaseComponents();
+                Dictionary<string, Type> storageComponents = BackupPipeSystem.LoadStorageComponents();
 
 
                 if (args.Length == 0)
@@ -95,17 +96,35 @@ namespace MSSQLBackupPipe
 
                         case "backup":
                             {
-                                ConfigPair storageConfig;
-                                ConfigPair databaseConfig;
-                                bool isBackup = true;
+                                try
+                                {
 
-                                List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
+                                    ConfigPair storageConfig;
+                                    ConfigPair databaseConfig;
+                                    bool isBackup = true;
 
-                                return BackupOrRestore(isBackup, storageConfig, databaseConfig, pipelineConfig);
+                                    List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
+
+                                    CommandLineNotifier notifier = new CommandLineNotifier(true);
+
+                                    BackupPipeSystem.Backup(databaseConfig, pipelineConfig, storageConfig, notifier);
+                                    return 0;
+                                }
+                                catch (ExecutionExceptions ee)
+                                {
+                                    HandleExecutionExceptions(ee, true);
+                                    return -1;
+                                }
+                                catch (Exception e)
+                                {
+                                    HandleException(e, true);
+                                    return -1;
+                                }
                             }
 
                         case "restore":
                             {
+                                try {
                                 ConfigPair storageConfig;
                                 ConfigPair databaseConfig;
 
@@ -113,7 +132,21 @@ namespace MSSQLBackupPipe
 
                                 List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
 
-                                return BackupOrRestore(isBackup, storageConfig, databaseConfig, pipelineConfig);
+                                CommandLineNotifier notifier = new CommandLineNotifier(true);
+
+                                BackupPipeSystem.Restore(storageConfig, pipelineConfig, databaseConfig, notifier);
+                                return 0;
+                            }
+                            catch (ExecutionExceptions ee)
+                            {
+                                HandleExecutionExceptions(ee, false);
+                                return -1;
+                            }
+                            catch (Exception e)
+                            {
+                                HandleException(e, false);
+                                return -1;
+                            }
                             }
                         case "listplugins":
                             PrintPlugins(pipelineComponents, databaseComponents, storageComponents);
@@ -141,8 +174,10 @@ namespace MSSQLBackupPipe
                     }
                 }
             }
+
             catch (Exception e)
             {
+
                 Util.WriteError(e);
 
                 Exception ie = e;
@@ -155,14 +190,53 @@ namespace MSSQLBackupPipe
                     Console.WriteLine(ie.Message);
                 }
 
-
                 PrintUsage();
-                //             Console.WriteLine(e.StackTrace);
 
                 return -1;
             }
 
 
+        }
+
+
+        private static void HandleExecutionExceptions(ExecutionExceptions ee, bool isBackup)
+        {
+            if (ee.ThreadException != null)
+            {
+                Util.WriteError(ee.ThreadException);
+            }
+
+            foreach (Exception e in ee.DeviceExceptions)
+            {
+                Util.WriteError(e);
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(string.Format("The {0} failed.", isBackup ? "backup" : "restore"));
+
+
+            PrintUsage();
+        }
+
+
+        private static void HandleException(Exception e, bool isBackup)
+        {
+            Util.WriteError(e);
+
+            Exception ie = e;
+            while (ie.InnerException != null)
+            {
+                ie = ie.InnerException;
+            }
+            if (!ie.Equals(e))
+            {
+                Console.WriteLine(ie.Message);
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(string.Format("The {0} failed.", isBackup ? "backup" : "restore"));
+
+            PrintUsage();
         }
 
         private static List<string> CopySubArgs(string[] args)
@@ -173,214 +247,6 @@ namespace MSSQLBackupPipe
                 result.Add(args[i]);
             }
             return result;
-        }
-
-        /// <summary>
-        /// returns true if successful
-        /// </summary>
-        private static int BackupOrRestore(bool isBackup, ConfigPair storageConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig)
-        {
-
-            string deviceSetName = Guid.NewGuid().ToString();
-
-            IBackupStorage storage = storageConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
-            IBackupDatabase databaseComp = databaseConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupDatabase;
-
-            bool success = false;
-
-            try
-            {
-
-                int numDevices = storage.GetNumberOfDevices(storageConfig.ConfigString);
-
-
-
-                //NotifyWhenReady notifyWhenReady = new NotifyWhenReady(deviceName, isBackup);
-                using (VirtualDeviceSet deviceSet = new VirtualDeviceSet())
-                {
-
-                    using (SqlThread sql = new SqlThread())
-                    {
-                        bool sqlStarted = false;
-                        bool sqlFinished = false;
-                        try
-                        {
-
-                            string instanceName = databaseComp.GetInstanceName(databaseConfig.ConfigString);
-                            string clusterNetworkName = databaseComp.GetClusterNetworkName(databaseConfig.ConfigString);
-                            List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.ConfigString, isBackup);
-
-                            using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.ConfigString) : storage.GetRestoreReader(storageConfig.ConfigString)))
-                            using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup)))
-                            {
-
-                                VirtualDeviceSetConfig config = new VirtualDeviceSetConfig();
-                                config.Features = FeatureSet.PipeLike;
-                                config.DeviceCount = (uint)topOfPilelines.Count;
-                                deviceSet.CreateEx(instanceName, deviceSetName, config);
-                                sql.BeginExecute();
-                                sqlStarted = true;
-                                deviceSet.GetConfiguration(TimeSpan.FromMinutes(1));
-                                List<VirtualDevice> devices = new List<VirtualDevice>();
-
-                                foreach (string devName in deviceNames)
-                                {
-                                    devices.Add(deviceSet.OpenDevice(devName));
-                                }
-
-                                using (DisposableList<DeviceThread> threads = new DisposableList<DeviceThread>(devices.Count))
-                                {
-                                    for (int i = 0; i < devices.Count; i++)
-                                    {
-                                        DeviceThread dThread = new DeviceThread();
-                                        threads.Add(dThread);
-                                        dThread.Initialize(isBackup, topOfPilelines[i], devices[i], deviceSet);
-                                    }
-                                    foreach (DeviceThread dThread in threads)
-                                    {
-                                        dThread.BeginCopy();
-                                    }
-
-                                    bool hasException = false;
-
-                                    Console.WriteLine(string.Format("{0} started", isBackup ? "Backup" : "Restore"));
-
-                                    Exception sqlE = sql.EndExecute();
-                                    sqlFinished = true;
-                                    if (sqlE != null)
-                                    {
-                                        Util.WriteError(sqlE);
-                                        //Console.WriteLine(e.StackTrace);
-                                        hasException = true;
-                                    }
-
-                                    foreach (DeviceThread dThread in threads)
-                                    {
-                                        Exception devE = dThread.EndCopy();
-                                        if (devE != null)
-                                        {
-                                            Console.WriteLine(devE.Message);
-                                            //Console.WriteLine(e.StackTrace);
-                                            hasException = true;
-                                        }
-                                    }
-
-
-                                    if (!hasException)
-                                    {
-                                        success = true;
-                                    }
-                                }
-                            }
-                        }
-                        finally
-                        {
-                            if (sqlStarted && !sqlFinished)
-                            {
-                                Exception sqlE = sql.EndExecute();
-                                sqlFinished = true;
-                                if (sqlE != null)
-                                {
-                                    Util.WriteError(sqlE);
-                                    success = false;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                success = false;
-                Util.WriteError(e);
-                storage.CleanupOnAbort();
-            }
-
-            Console.WriteLine();
-
-            if (success)
-            {
-                Console.WriteLine(string.Format("The {0} completed successfully.", isBackup ? "backup" : "restore"));
-            }
-            else
-            {
-                Console.WriteLine(string.Format("The {0} failed.", isBackup ? "backup" : "restore"));
-            }
-
-            return success ? 0 : -1;
-        }
-
-
-
-
-        private static Dictionary<string, Type> LoadComponents(string interfaceName)
-        {
-            Dictionary<string, Type> result = new Dictionary<string, Type>(StringComparer.InvariantCultureIgnoreCase);
-
-            DirectoryInfo binDir = new FileInfo(Assembly.GetEntryAssembly().Location).Directory;
-
-            foreach (FileInfo file in binDir.GetFiles("*.dll"))
-            {
-
-                Assembly dll = null;
-                try
-                {
-                    dll = Assembly.LoadFrom(file.FullName);
-                }
-                catch
-                { }
-                if (dll != null)
-                {
-                    FindPlugins(dll, result, interfaceName);
-                }
-            }
-
-            return result;
-        }
-
-
-
-        private static void FindPlugins(Assembly dll, Dictionary<string, Type> result, string interfaceName)
-        {
-            foreach (Type t in dll.GetTypes())
-            {
-                try
-                {
-                    if (t.IsPublic)
-                    {
-                        if (!((t.Attributes & TypeAttributes.Abstract) == TypeAttributes.Abstract))
-                        {
-                            if (t.GetInterface(interfaceName) != null)
-                            {
-                                object o = t.GetConstructor(new Type[0]).Invoke(new object[0]);
-
-
-                                IBackupPlugin test = o as IBackupPlugin;
-
-                                if (test != null)
-                                {
-                                    string name = test.GetName().ToLowerInvariant();
-
-                                    if (name.Contains("|") || name.Contains("("))
-                                    {
-                                        throw new ArgumentException(string.Format("The name of the plugin, {0}, cannot contain these characters: |, (", name));
-                                    }
-
-                                    if (result.ContainsKey(name))
-                                    {
-                                        throw new ArgumentException(string.Format("plugin found twice: {0}", name));
-                                    }
-                                    result.Add(name, t);
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(string.Format("Warning: Plugin not loaded due to error: {0}", e.Message));
-                }
-            }
         }
 
 
@@ -476,31 +342,6 @@ namespace MSSQLBackupPipe
             return results;
         }
 
-
-
-        private static Stream[] CreatePipeline(List<ConfigPair> pipelineConfig, IList<Stream> fileStreams, bool isBackup)
-        {
-            List<Stream> result = new List<Stream>(fileStreams.Count);
-
-            foreach (Stream fileStream in fileStreams)
-            {
-                Stream topStream = fileStream;
-
-                for (int i = pipelineConfig.Count - 1; i >= 0; i--)
-                {
-                    ConfigPair config = pipelineConfig[i];
-
-                    MSSQLBackupPipe.StdPlugins.IBackupTransformer tran = config.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as MSSQLBackupPipe.StdPlugins.IBackupTransformer;
-                    if (tran == null)
-                    {
-                        throw new ArgumentException(string.Format("Unable to create pipe component: {0}", config.TransformationType.Name));
-                    }
-                    topStream = isBackup ? tran.GetBackupWriter(config.ConfigString, topStream) : tran.GetRestoreReader(config.ConfigString, topStream);
-                }
-                result.Add(topStream);
-            }
-            return result.ToArray();
-        }
 
 
 

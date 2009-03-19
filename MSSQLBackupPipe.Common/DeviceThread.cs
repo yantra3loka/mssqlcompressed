@@ -28,7 +28,7 @@ using System.Reflection;
 using VirtualBackupDevice;
 using MSSQLBackupPipe.StdPlugins;
 
-namespace MSSQLBackupPipe
+namespace MSSQLBackupPipe.Common
 {
     class DeviceThread : IDisposable
     {
