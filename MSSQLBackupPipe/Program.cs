@@ -27,7 +27,7 @@ using System.IO;
 using System.Reflection;
 using System.Diagnostics;
 
-using VirtualBackupDevice;
+using MSBackupPipe.VirtualBackupDevice;
 using MSSQLBackupPipe.StdPlugins;
 using MSSQLBackupPipe.Common;
 
@@ -164,7 +164,7 @@ namespace MSSQLBackupPipe
 
                         case "version":
                             Version version = Assembly.GetEntryAssembly().GetName().Version;
-                            ProcessorArchitecture arch = typeof(VirtualBackupDevice.VirtualDeviceSet).Assembly.GetName().ProcessorArchitecture;
+                            ProcessorArchitecture arch = typeof(VirtualDeviceSet).Assembly.GetName().ProcessorArchitecture;
                             Console.WriteLine(string.Format("v{0} {1} ({2:yyyy MMM dd})", version, arch, (new DateTime(2000, 1, 1)).AddDays(version.Build)));
                             return 0;
                         default:

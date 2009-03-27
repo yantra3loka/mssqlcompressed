@@ -18,28 +18,39 @@
     along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "StdAfx.h"
+#include "StringWrapper.h"
 
-#pragma once
+using namespace System::Runtime::InteropServices;
 
-namespace VirtualBackupDevice 
+namespace MSBackupPipe
 {
-	CA_SUPPRESS_MESSAGE("Microsoft.Design", "CA1008:EnumsShouldHaveZeroValue")
-	public enum class DeviceCommandType
+	namespace VirtualBackupDevice
 	{
-		Read = VDC_Read,
-		Write = VDC_Write,
-		ClearError = VDC_ClearError,
-		Rewind = VDC_Rewind,
-		WriteMark = VDC_WriteMark,
-		SkipMarks = VDC_SkipMarks,
-		SkipBlocks = VDC_SkipBlocks,
-		Load = VDC_Load,
-		GetPosition = VDC_GetPosition,
-		SetPosition = VDC_SetPosition,
-		Discard = VDC_Discard,
-		Flush = VDC_Flush,
-		Snapshot = VDC_Snapshot,
-		PrepareToFreeze = VDC_PrepareToFreeze,
-		MountSnapshot = VDC_MountSnapshot
-	};
+		StringWrapper::StringWrapper(String^ s)
+		{
+			mIntPtr = IntPtr::Zero;
+			if (!String::IsNullOrEmpty(s)) 
+			{
+				mIntPtr = Marshal::StringToHGlobalUni(s);
+			}
+		}
+
+
+		StringWrapper::~StringWrapper(void)
+		{
+			Marshal::FreeHGlobal(mIntPtr);
+		}
+
+		LPCWSTR StringWrapper::ToPointer()
+		{
+			LPCWSTR instanceNamePtr = NULL;
+			if (mIntPtr != IntPtr::Zero) 
+			{
+				instanceNamePtr = (LPCWSTR)mIntPtr.ToPointer();
+			}
+
+			return instanceNamePtr;
+		}
+	}
 }

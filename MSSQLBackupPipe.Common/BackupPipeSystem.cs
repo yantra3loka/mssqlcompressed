@@ -5,7 +5,7 @@ using System.Reflection;
 using System.IO;
 
 using MSSQLBackupPipe.StdPlugins;
-using VirtualBackupDevice;
+using MSBackupPipe.VirtualBackupDevice;
 
 namespace MSSQLBackupPipe.Common
 {

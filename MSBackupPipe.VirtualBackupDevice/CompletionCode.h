@@ -18,21 +18,28 @@
     along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
 #pragma once
 
-using namespace System;
-
-namespace VirtualBackupDevice 
+namespace MSBackupPipe
 {
-	ref class StringWrapper
+	namespace VirtualBackupDevice
 	{
-	public:
-		StringWrapper(String^ s);
-		~StringWrapper(void);
 
-		LPCWSTR ToPointer();
+		public enum class CompletionCode
+		{
+			Success = ERROR_SUCCESS,
+			CA_SUPPRESS_MESSAGE("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId="Eof")
+			HandleEof = ERROR_HANDLE_EOF,
+			DiskFull = ERROR_DISK_FULL,
+			NotSupported  = ERROR_NOT_SUPPORTED,
+			NoDataDetected = ERROR_NO_DATA_DETECTED,
+			CA_SUPPRESS_MESSAGE("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId="Filemark")
+			FilemarkDetected = ERROR_FILEMARK_DETECTED,
+			EomOverflow = ERROR_EOM_OVERFLOW,
+			EndOfMedia = ERROR_END_OF_MEDIA,
+			OperationAborted = ERROR_OPERATION_ABORTED
 
-	private:
-		IntPtr mIntPtr;
-	};
+		};
+	}
 }

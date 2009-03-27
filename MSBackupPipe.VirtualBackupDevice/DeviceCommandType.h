@@ -18,36 +18,31 @@
     along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
 #pragma once
 
-#include "CommandBuffer.h"
-#include "CompletionCode.h"
-
-using namespace System;
-using namespace System::Runtime::InteropServices;
-
-namespace VirtualBackupDevice 
+namespace MSBackupPipe
 {
-	public ref class VirtualDevice
+	namespace VirtualBackupDevice
 	{
-	public:
-
-
-		///<summary>
-		/// errors throw an exception
-		/// EOF returns false
-		/// timeouts return true and set timeOutOccurred to true
-		///</summary>
-		bool GetCommand(Nullable<TimeSpan> timeout, CommandBuffer^ buff);
-
-		void CompleteCommand(CommandBuffer^ buff, CompletionCode completionCode, UINT32 bytesTransferred, UINT64 position);
-
-	internal:
-		VirtualDevice(IClientVirtualDevice*);
-
-
-
-	private:
-		IClientVirtualDevice* mDevice;
-	};
+		CA_SUPPRESS_MESSAGE("Microsoft.Design", "CA1008:EnumsShouldHaveZeroValue")
+		public enum class DeviceCommandType
+		{
+			Read = VDC_Read,
+			Write = VDC_Write,
+			ClearError = VDC_ClearError,
+			Rewind = VDC_Rewind,
+			WriteMark = VDC_WriteMark,
+			SkipMarks = VDC_SkipMarks,
+			SkipBlocks = VDC_SkipBlocks,
+			Load = VDC_Load,
+			GetPosition = VDC_GetPosition,
+			SetPosition = VDC_SetPosition,
+			Discard = VDC_Discard,
+			Flush = VDC_Flush,
+			Snapshot = VDC_Snapshot,
+			PrepareToFreeze = VDC_PrepareToFreeze,
+			MountSnapshot = VDC_MountSnapshot
+		};
+	}
 }

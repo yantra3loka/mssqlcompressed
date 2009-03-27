@@ -31,44 +31,47 @@ using namespace System;
 using namespace System::Collections::Generic;
 
 
-namespace VirtualBackupDevice 
+namespace MSBackupPipe
 {
+	namespace VirtualBackupDevice
+	{
 	
 
 
-	public ref class VirtualDeviceSet
-	{
-	public:
-		VirtualDeviceSet(void);
-		~VirtualDeviceSet(void);
-
-		void CreateEx(String^ instanceName, String^ deviceSetName, VirtualDeviceSetConfig^ config);
-
-		VirtualDeviceSetConfig^ GetConfiguration(Nullable<TimeSpan> timeout);
-
-		VirtualDevice^ OpenDevice(String^ deviceName);
-
-		void SignalAbort();
-
-		void Close();
-
-		//void OpenInSecondaryEx(String^ instanceName, String^ setName);
-
-
-	private:
-		enum class VirtualDeviceSetState
+		public ref class VirtualDeviceSet
 		{
-			Unconfigured,
-			Configurable,
-			Initializing,
-			Active,
-			NormallyTerminated,
-			AbnormallyTerminated
-		};
+		public:
+			VirtualDeviceSet(void);
+			~VirtualDeviceSet(void);
 
-		//String^ mDeviceSetName;
-		IClientVirtualDeviceSet2* mVds;
-		VirtualDeviceSetState mDeviceSetState;
-		//UINT32 mDeviceCount;
-	};
+			void CreateEx(String^ instanceName, String^ deviceSetName, VirtualDeviceSetConfig^ config);
+
+			VirtualDeviceSetConfig^ GetConfiguration(Nullable<TimeSpan> timeout);
+
+			VirtualDevice^ OpenDevice(String^ deviceName);
+
+			void SignalAbort();
+
+			void Close();
+
+			//void OpenInSecondaryEx(String^ instanceName, String^ setName);
+
+
+		private:
+			enum class VirtualDeviceSetState
+			{
+				Unconfigured,
+				Configurable,
+				Initializing,
+				Active,
+				NormallyTerminated,
+				AbnormallyTerminated
+			};
+
+			//String^ mDeviceSetName;
+			IClientVirtualDeviceSet2* mVds;
+			VirtualDeviceSetState mDeviceSetState;
+			//UINT32 mDeviceCount;
+		};
+	}
 }

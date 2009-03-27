@@ -18,36 +18,24 @@
     along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "StdAfx.h"
-#include "StringWrapper.h"
+#pragma once
 
-using namespace System::Runtime::InteropServices;
+using namespace System;
 
-namespace VirtualBackupDevice 
+namespace MSBackupPipe
 {
-	StringWrapper::StringWrapper(String^ s)
+	namespace VirtualBackupDevice
 	{
-		mIntPtr = IntPtr::Zero;
-		if (!String::IsNullOrEmpty(s)) 
+		ref class StringWrapper
 		{
-			mIntPtr = Marshal::StringToHGlobalUni(s);
-		}
-	}
+		public:
+			StringWrapper(String^ s);
+			~StringWrapper(void);
 
+			LPCWSTR ToPointer();
 
-	StringWrapper::~StringWrapper(void)
-	{
-		Marshal::FreeHGlobal(mIntPtr);
-	}
-
-	LPCWSTR StringWrapper::ToPointer()
-	{
-		LPCWSTR instanceNamePtr = NULL;
-		if (mIntPtr != IntPtr::Zero) 
-		{
-			instanceNamePtr = (LPCWSTR)mIntPtr.ToPointer();
-		}
-
-		return instanceNamePtr;
+		private:
+			IntPtr mIntPtr;
+		};
 	}
 }

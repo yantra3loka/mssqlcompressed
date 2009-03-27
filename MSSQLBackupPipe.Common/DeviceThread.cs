@@ -25,7 +25,7 @@ using System.Threading;
 using System.IO;
 using System.Reflection;
 
-using VirtualBackupDevice;
+using MSBackupPipe.VirtualBackupDevice;
 using MSSQLBackupPipe.StdPlugins;
 
 namespace MSSQLBackupPipe.Common

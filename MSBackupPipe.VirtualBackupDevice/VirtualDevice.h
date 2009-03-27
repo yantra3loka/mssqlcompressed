@@ -18,25 +18,39 @@
     along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 #pragma once
 
-namespace VirtualBackupDevice 
+#include "CommandBuffer.h"
+#include "CompletionCode.h"
+
+using namespace System;
+using namespace System::Runtime::InteropServices;
+
+namespace MSBackupPipe
 {
-
-	public enum class CompletionCode
+	namespace VirtualBackupDevice
 	{
-		Success = ERROR_SUCCESS,
-		CA_SUPPRESS_MESSAGE("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId="Eof")
-		HandleEof = ERROR_HANDLE_EOF,
-		DiskFull = ERROR_DISK_FULL,
-		NotSupported  = ERROR_NOT_SUPPORTED,
-		NoDataDetected = ERROR_NO_DATA_DETECTED,
-		CA_SUPPRESS_MESSAGE("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId="Filemark")
-		FilemarkDetected = ERROR_FILEMARK_DETECTED,
-		EomOverflow = ERROR_EOM_OVERFLOW,
-		EndOfMedia = ERROR_END_OF_MEDIA,
-		OperationAborted = ERROR_OPERATION_ABORTED
+		public ref class VirtualDevice
+		{
+		public:
 
-	};
+
+			///<summary>
+			/// errors throw an exception
+			/// EOF returns false
+			/// timeouts return true and set timeOutOccurred to true
+			///</summary>
+			bool GetCommand(Nullable<TimeSpan> timeout, CommandBuffer^ buff);
+
+			void CompleteCommand(CommandBuffer^ buff, CompletionCode completionCode, UINT32 bytesTransferred, UINT64 position);
+
+		internal:
+			VirtualDevice(IClientVirtualDevice*);
+
+
+
+		private:
+			IClientVirtualDevice* mDevice;
+		};
+	}
 }

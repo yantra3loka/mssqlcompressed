@@ -5,7 +5,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSSQLBackupPipe", "MSSQLBac
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSSQLBackupPipe.StdPlugins", "MSSQLBackupPipe.StdPlugins\MSSQLBackupPipe.StdPlugins.csproj", "{FD720360-0D0F-410B-990E-36DE4BEB9F23}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualBackupDevice", "VirtualBackupDevice\VirtualBackupDevice.vcproj", "{75864945-89FD-43ED-B0E0-18813A5BD2DD}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MSBackupPipe.VirtualBackupDevice", "MSBackupPipe.VirtualBackupDevice\MSBackupPipe.VirtualBackupDevice.vcproj", "{75864945-89FD-43ED-B0E0-18813A5BD2DD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleasePackaging", "ReleasePackaging\ReleasePackaging.csproj", "{9C8081AF-4FB8-4A85-B205-C385BCC36E01}"
 	ProjectSection(ProjectDependencies) = postProject

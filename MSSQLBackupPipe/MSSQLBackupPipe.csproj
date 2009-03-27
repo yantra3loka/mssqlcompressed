@@ -2,7 +2,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProductVersion>8.0.50727</ProductVersion>
+    <ProductVersion>9.0.30729</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{64799887-2FDF-4B40-8757-7B2E4B0F735D}</ProjectGuid>
     <OutputType>Exe</OutputType>
@@ -54,7 +54,7 @@
       <Project>{FD720360-0D0F-410B-990E-36DE4BEB9F23}</Project>
       <Name>MSSQLBackupPipe.StdPlugins</Name>
     </ProjectReference>
-    <ProjectReference Include="..\VirtualBackupDevice\VirtualBackupDevice.vcproj">
+    <ProjectReference Include="..\MSBackupPipe.VirtualBackupDevice\MSBackupPipe.VirtualBackupDevice.vcproj">
       <Project>{75864945-89FD-43ED-B0E0-18813A5BD2DD}</Project>
       <Name>VirtualBackupDevice</Name>
     </ProjectReference>

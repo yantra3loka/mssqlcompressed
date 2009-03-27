@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="VirtualBackupDevice"
+	Name="MSBackupPipe.VirtualBackupDevice"
 	ProjectGUID="{75864945-89FD-43ED-B0E0-18813A5BD2DD}"
-	RootNamespace="VirtualBackupDevice"
+	RootNamespace="MSBackupPipe.VirtualBackupDevice"
 	Keyword="ManagedCProj"
 	TargetFrameworkVersion="131072"
 	>
