@@ -28,13 +28,13 @@ namespace VirtualBackupDevice
 		mDevice = dev;
 	}
 
-	bool VirtualDevice::GetCommand(Nullable<TimeSpan> timeOut, CommandBuffer^ cBuff, [Out] bool% timeOutOccurred)
+	bool VirtualDevice::GetCommand(Nullable<TimeSpan> timeout, CommandBuffer^ buff)
 	{
 
 		DWORD dwTimeOut = INFINITE;
-		if (timeOut.HasValue) 
+		if (timeout.HasValue) 
 		{
-			dwTimeOut = Convert::ToUInt32(timeOut.Value.TotalMilliseconds);
+			dwTimeOut = Convert::ToUInt32(timeout.Value.TotalMilliseconds);
 		}
 
 
@@ -44,20 +44,20 @@ namespace VirtualBackupDevice
 		HRESULT hr = mDevice->GetCommand(dwTimeOut, &cmd);
 		if (SUCCEEDED(hr))
 		{
-			cBuff->SetCommand(cmd);
-			timeOutOccurred = false;
+			buff->SetCommand(cmd);
+			buff->mTimedOut = false;
 			return true;
 		}
 		else if (hr == VD_E_TIMEOUT)
 		{
-			timeOutOccurred = true;
+			buff->mTimedOut = true;
 			return true;
 		}
 		else
 		{
 			if (hr == VD_E_CLOSE)
 			{
-				timeOutOccurred = false;
+				buff->mTimedOut = false;
 				return false; // EOF
 			}
 
@@ -69,10 +69,10 @@ namespace VirtualBackupDevice
 	}
 
 
-	void VirtualDevice::CompleteCommand(CommandBuffer^ cBuff, CompletionCode completionCode, UINT32 dwBytesTransferred, UINT64 dwlPosition)
+	void VirtualDevice::CompleteCommand(CommandBuffer^ buff, CompletionCode completionCode, UINT32 bytesTransferred, UINT64 position)
 	{
 		HRESULT hr;
-		if (!SUCCEEDED(hr = mDevice->CompleteCommand(cBuff->GetCommand(), (UINT32)completionCode, dwBytesTransferred, dwlPosition)))
+		if (!SUCCEEDED(hr = mDevice->CompleteCommand(buff->GetCommand(), (UINT32)completionCode, bytesTransferred, position)))
 		{
 			throw gcnew InvalidProgramException(String::Format("Unable to complete the command: {0}.", hr));
 		}

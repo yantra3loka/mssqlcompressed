@@ -38,9 +38,9 @@ namespace VirtualBackupDevice
 		/// EOF returns false
 		/// timeouts return true and set timeOutOccurred to true
 		///</summary>
-		bool GetCommand(Nullable<TimeSpan> timeOut, CommandBuffer^ cBuff, [Out] bool% timeOutOccurred);
+		bool GetCommand(Nullable<TimeSpan> timeout, CommandBuffer^ buff);
 
-		void CompleteCommand(CommandBuffer^ cBuff, CompletionCode completionCode, UINT32 dwBytesTransferred, UINT64 dwlPosition);
+		void CompleteCommand(CommandBuffer^ buff, CompletionCode completionCode, UINT32 bytesTransferred, UINT64 position);
 
 	internal:
 		VirtualDevice(IClientVirtualDevice*);

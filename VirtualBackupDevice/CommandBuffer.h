@@ -36,46 +36,41 @@ using namespace System::IO;
 namespace VirtualBackupDevice 
 {
 
-	//public class enum DeviceCommandType
-	//{
 
-	//}
 
 	public ref class CommandBuffer
 	{
 	public:
 		CommandBuffer();
-		int WriteToStream(Stream^ s);
-		int ReadFromStream(Stream^ s);
+		int WriteToStream(Stream^ destination);
+		int ReadFromStream(Stream^ source);
 
 
 		property DeviceCommandType CommandType
 		{
-			DeviceCommandType get()
-			{
-				return (DeviceCommandType)mCmd->commandCode;
-			}
+			DeviceCommandType get() { return (DeviceCommandType)mCmd->commandCode; }
 		}
 
 		property UINT64 Position
 		{
-			UINT64 get()
-			{
-				return mCmd->position;
-			}
+			UINT64 get() { return mCmd->position; }
 		}
 
 		property UINT32 Size
 		{
-			UINT32 get()
-			{
-				return mCmd->size;
-			}
+			UINT32 get() { return mCmd->size; }
+		}
+
+		property bool TimedOut
+		{
+			bool get() { return mTimedOut; }
 		}
 
 	internal:
 		void SetCommand(VDC_Command* cmd);
 		VDC_Command* GetCommand();
+
+		bool mTimedOut;
 
 	private:
 		VDC_Command* mCmd;

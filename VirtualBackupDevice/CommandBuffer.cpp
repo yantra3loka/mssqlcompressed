@@ -37,7 +37,7 @@ namespace VirtualBackupDevice
 
 
 
-	int CommandBuffer::WriteToStream(Stream^ s)
+	int CommandBuffer::WriteToStream(Stream^ destination)
 	{
 		int count = (int)mCmd->size;
 
@@ -45,7 +45,7 @@ namespace VirtualBackupDevice
 
 		WriteToArray(mCachedArray, count);
 
-		s->Write(mCachedArray, 0, count);
+		destination->Write(mCachedArray, 0, count);
 
 		return count;
 	}
@@ -59,7 +59,7 @@ namespace VirtualBackupDevice
 
 		if (ary->Length < count) 
 		{
-			throw gcnew System::IndexOutOfRangeException("Cannot write past the end of parameter 'ary'.");
+			throw gcnew System::ArgumentException("Cannot write past the end of parameter 'ary'.");
 		}
 
 		
@@ -86,13 +86,13 @@ namespace VirtualBackupDevice
 		}
 	}
 
-	int CommandBuffer::ReadFromStream(Stream^ s)
+	int CommandBuffer::ReadFromStream(Stream^ source)
 	{
 		int cmdCount = (int)mCmd->size;
 
 		IncreaseCachedArraySize(cmdCount);
 
-		int count = s->Read(mCachedArray, 0, cmdCount);
+		int count = source->Read(mCachedArray, 0, cmdCount);
 
 		ReadFromArray(mCachedArray, count);
 
@@ -109,7 +109,7 @@ namespace VirtualBackupDevice
 
 		if (ary->Length < count) 
 		{
-			throw gcnew System::IndexOutOfRangeException("Cannot read past the end of parameter 'ary'.");
+			throw gcnew System::ArgumentException("Cannot read past the end of parameter 'ary'.");
 		}
 
 		

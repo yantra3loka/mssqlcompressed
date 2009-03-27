@@ -99,12 +99,11 @@ namespace MSSQLBackupPipe.Common
         private static void ReadWriteData(VirtualDevice device, CommandBuffer buff, Stream stream, bool isBackup)
         {
 
-            bool timedOut;
-            while (device.GetCommand(null, buff, out timedOut))
+            while (device.GetCommand(null, buff))
             {
-                if (!timedOut)
+                if (!buff.TimedOut)
                 {
-                    CompletionCode completionCode = CompletionCode.DISK_FULL;
+                    CompletionCode completionCode = CompletionCode.DiskFull;
                     uint bytesTransferred = 0;
 
                     try
@@ -121,7 +120,7 @@ namespace MSSQLBackupPipe.Common
 
                                 bytesTransferred = (uint)buff.WriteToStream(stream);
 
-                                completionCode = CompletionCode.SUCCESS;
+                                completionCode = CompletionCode.Success;
 
                                 break;
                             case DeviceCommandType.Read:
@@ -135,21 +134,21 @@ namespace MSSQLBackupPipe.Common
 
                                 if (bytesTransferred > 0)
                                 {
-                                    completionCode = CompletionCode.SUCCESS;
+                                    completionCode = CompletionCode.Success;
                                 }
                                 else
                                 {
-                                    completionCode = CompletionCode.HANDLE_EOF;
+                                    completionCode = CompletionCode.HandleEof;
                                 }
 
                                 break;
                             case DeviceCommandType.ClearError:
-                                completionCode = CompletionCode.SUCCESS;
+                                completionCode = CompletionCode.Success;
                                 break;
 
                             case DeviceCommandType.Flush:
                                 stream.Flush();
-                                completionCode = CompletionCode.SUCCESS;
+                                completionCode = CompletionCode.Success;
                                 break;
 
                             default:

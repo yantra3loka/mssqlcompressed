@@ -48,7 +48,6 @@ namespace MSSQLBackupPipe.Common
             IBackupStorage storage = storageConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
             IBackupDatabase databaseComp = databaseConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupDatabase;
 
-            bool success = false;
 
             try
             {

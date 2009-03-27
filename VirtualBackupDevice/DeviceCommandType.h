@@ -23,6 +23,7 @@
 
 namespace VirtualBackupDevice 
 {
+	CA_SUPPRESS_MESSAGE("Microsoft.Design", "CA1008:EnumsShouldHaveZeroValue")
 	public enum class DeviceCommandType
 	{
 		Read = VDC_Read,

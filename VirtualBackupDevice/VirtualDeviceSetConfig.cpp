@@ -33,7 +33,7 @@ namespace VirtualBackupDevice
 		Alignment = 0;
 		SoftFileMarkBlockSize = 0;
 		EomWarningSize = 0;
-		ServerTimeOut = Nullable<TimeSpan>();
+		ServerTimeout = Nullable<TimeSpan>();
 		
 	}
 
@@ -48,9 +48,9 @@ namespace VirtualBackupDevice
 		config->maxIODepth = 0;
 		config->maxTransferSize = 0;
 		config->prefixZoneSize = this->PrefixZoneSize;
-		if (this->ServerTimeOut.HasValue) 
+		if (this->ServerTimeout.HasValue) 
 		{
-			config->serverTimeOut = Convert::ToUInt32(this->ServerTimeOut.Value.TotalMilliseconds);
+			config->serverTimeOut = Convert::ToUInt32(this->ServerTimeout.Value.TotalMilliseconds);
 		}
 		else 
 		{
@@ -65,15 +65,15 @@ namespace VirtualBackupDevice
 		this->DeviceCount = config->deviceCount;
 		this->Alignment = config->alignment;
 		this->EomWarningSize = config->EOMWarningSize;
-		this->Features = (Feature)(int)config->features;
+		this->Features = (FeatureBits)(int)config->features;
 		this->PrefixZoneSize = config->prefixZoneSize;
 		if (config->serverTimeOut == 0) 
 		{
-			this->ServerTimeOut = Nullable<TimeSpan>();
+			this->ServerTimeout = Nullable<TimeSpan>();
 		}
 		else 
 		{
-			this->ServerTimeOut = TimeSpan::FromMilliseconds(Convert::ToDouble((UINT32)config->serverTimeOut));
+			this->ServerTimeout = TimeSpan::FromMilliseconds(Convert::ToDouble((UINT32)config->serverTimeOut));
 		}
 		this->SoftFileMarkBlockSize = config->softFileMarkBlockSize;
 	}

@@ -44,7 +44,7 @@ namespace VirtualBackupDevice
 
 		void CreateEx(String^ instanceName, String^ deviceSetName, VirtualDeviceSetConfig^ config);
 
-		VirtualDeviceSetConfig^ GetConfiguration(Nullable<TimeSpan> timeOut);
+		VirtualDeviceSetConfig^ GetConfiguration(Nullable<TimeSpan> timeout);
 
 		VirtualDevice^ OpenDevice(String^ deviceName);
 
@@ -69,6 +69,6 @@ namespace VirtualBackupDevice
 		//String^ mDeviceSetName;
 		IClientVirtualDeviceSet2* mVds;
 		VirtualDeviceSetState mDeviceSetState;
-		UINT32 mDeviceCount;
+		//UINT32 mDeviceCount;
 	};
 }

@@ -61,6 +61,7 @@ namespace VirtualBackupDevice
 
 	}
 
+	CA_SUPPRESS_MESSAGE("Microsoft.Naming", "CA1711:IdentifiersShouldNotHaveIncorrectSuffix")
 	void VirtualDeviceSet::CreateEx(String^ instanceName, String^ deviceSetName, VirtualDeviceSetConfig^ config)
 	{
 		if (mVds == NULL) 
@@ -92,13 +93,13 @@ namespace VirtualBackupDevice
 
 		mDeviceSetState = VirtualDeviceSetState::Configurable;
 
-		mDeviceCount = vDConfig.deviceCount;
+		//mDeviceCount = vDConfig.deviceCount;
 		//mDeviceSetName = deviceSetName;
 
 	}
 
 
-	VirtualDeviceSetConfig^ VirtualDeviceSet::GetConfiguration(Nullable<TimeSpan> timeOut)
+	VirtualDeviceSetConfig^ VirtualDeviceSet::GetConfiguration(Nullable<TimeSpan> timeout)
 	{
 		if (mVds == NULL) 
 		{
@@ -110,16 +111,16 @@ namespace VirtualBackupDevice
 			throw gcnew System::InvalidProgramException(String::Format("GetConfiguration() must be called after CreateEx()."));
 		}
 
-		DWORD dwTimeOut = INFINITE;
-		if (timeOut.HasValue) 
+		DWORD dwTimeout = INFINITE;
+		if (timeout.HasValue) 
 		{
-			dwTimeOut = Convert::ToUInt32(timeOut.Value.TotalMilliseconds);
+			dwTimeout = Convert::ToUInt32(timeout.Value.TotalMilliseconds);
 		}
 
 		VDConfig vDConfig;
 		memset(&vDConfig, 0, sizeof(vDConfig));  
 
-		HRESULT hr = mVds->GetConfiguration(dwTimeOut, &vDConfig);
+		HRESULT hr = mVds->GetConfiguration(dwTimeout, &vDConfig);
 		if (!SUCCEEDED(hr)) 
 		{
 			throw gcnew System::InvalidProgramException(String::Format("VDS::GetConfiguration failed: x{0:X}", hr));

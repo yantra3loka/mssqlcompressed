@@ -29,9 +29,9 @@ namespace VirtualBackupDevice
 	
 
 	[Flags]
-	public enum class Feature : int
+	public enum class FeatureBits : int
 	{
-		Nothing = 0,
+		None = 0,
 		Removable = VDF_Removable,
 		FileMarks=VDF_FileMarks,
 		RandomAccess =VDF_RandomAccess ,
@@ -52,26 +52,74 @@ namespace VirtualBackupDevice
 	public:
 		VirtualDeviceSetConfig(void);
 
-		UINT32 DeviceCount;
-		Feature Features;
-		UINT32 PrefixZoneSize;
-		UINT32 Alignment;
-		UINT32 SoftFileMarkBlockSize;
-		UINT32 EomWarningSize;
-		Nullable<TimeSpan> ServerTimeOut;
+		property UINT32 DeviceCount
+		{
+			UINT32 get() { return mDeviceCount; }
+			void set(UINT32 val) { mDeviceCount = val; }
+		}
+
+		property FeatureBits Features
+		{
+			FeatureBits get() { return mFeatures; }
+			void set(FeatureBits val) { mFeatures = val; }
+		}
+
+		property UINT32 PrefixZoneSize
+		{
+			UINT32 get() { return mPrefixZoneSize; }
+			void set(UINT32 val) { mPrefixZoneSize = val; }
+		}
+
+		property UINT32 Alignment
+		{
+			UINT32 get() { return mAlignment; }
+			void set(UINT32 val) { mAlignment = val; }
+		}
+
+		property UINT32 SoftFileMarkBlockSize
+		{
+			UINT32 get() { return mSoftFileMarkBlockSize; }
+			void set(UINT32 val) { mSoftFileMarkBlockSize = val; }
+		}
+
+		property UINT32 EomWarningSize
+		{
+			UINT32 get() { return mEomWarningSize; }
+			void set(UINT32 val) { mEomWarningSize = val; }
+		}
+
+		property Nullable<TimeSpan> ServerTimeout
+		{
+			Nullable<TimeSpan> get() { return mServerTimeout; }
+			void set(Nullable<TimeSpan> val) { mServerTimeout = val; }
+		}
+
 
 		
 	internal:
 		void CopyTo(VDConfig* config);
 		void CopyFrom(const VDConfig* config);
+
+	private:
+		UINT32 mDeviceCount;
+		FeatureBits mFeatures;
+		UINT32 mPrefixZoneSize;
+		UINT32 mAlignment;
+		UINT32 mSoftFileMarkBlockSize;
+		UINT32 mEomWarningSize;
+		Nullable<TimeSpan> mServerTimeout;
+
 	};
 
 
-	public ref class FeatureSet 
+	public ref class FeatureSet sealed
 	{
 	public:
-		static Feature PipeLike = Feature::Nothing;
-		static Feature TapeLike = Feature::FileMarks | Feature::Removable | Feature::ReversePosition | Feature::Rewind | Feature::Position | Feature::SkipBlocks;
-		static Feature DiskLike = Feature::RandomAccess;
+		literal FeatureBits PipeLike = FeatureBits::None;
+		literal FeatureBits TapeLike = FeatureBits::FileMarks | FeatureBits::Removable | FeatureBits::ReversePosition | FeatureBits::Rewind | FeatureBits::Position | FeatureBits::SkipBlocks;
+		literal FeatureBits DiskLike = FeatureBits::RandomAccess;
+	private:
+		// Don't allow instances of this class
+		FeatureSet() {};
 	};
 }

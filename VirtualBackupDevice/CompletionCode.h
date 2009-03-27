@@ -26,15 +26,17 @@ namespace VirtualBackupDevice
 
 	public enum class CompletionCode
 	{
-		SUCCESS = ERROR_SUCCESS,
-		HANDLE_EOF = ERROR_HANDLE_EOF,
-		DISK_FULL = ERROR_DISK_FULL,
-		NOT_SUPPORTED  = ERROR_NOT_SUPPORTED,
-		NO_DATA_DETECTED = ERROR_NO_DATA_DETECTED,
-		FILEMARK_DETECTED = ERROR_FILEMARK_DETECTED,
-		EOM_OVERFLOW = ERROR_EOM_OVERFLOW,
-		END_OF_MEDIA = ERROR_END_OF_MEDIA,
-		OPERATION_ABORTED = ERROR_OPERATION_ABORTED
+		Success = ERROR_SUCCESS,
+		CA_SUPPRESS_MESSAGE("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId="Eof")
+		HandleEof = ERROR_HANDLE_EOF,
+		DiskFull = ERROR_DISK_FULL,
+		NotSupported  = ERROR_NOT_SUPPORTED,
+		NoDataDetected = ERROR_NO_DATA_DETECTED,
+		CA_SUPPRESS_MESSAGE("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId="Filemark")
+		FilemarkDetected = ERROR_FILEMARK_DETECTED,
+		EomOverflow = ERROR_EOM_OVERFLOW,
+		EndOfMedia = ERROR_END_OF_MEDIA,
+		OperationAborted = ERROR_OPERATION_ABORTED
 
 	};
 }
