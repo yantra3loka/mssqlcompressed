@@ -23,7 +23,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
-namespace MSSQLBackupPipe.StdPlugins.Storage
+namespace MSBackupPipe.StdPlugins.Storage
 {
     public class LocalStorage : IBackupStorage
     {
@@ -32,9 +32,9 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
 
         #region IBackupStorage Members
 
-        public string GetName()
+        public string Name
         {
-            return "local";
+            get { return "local"; }
         }
 
         public int GetNumberOfDevices(string config)
@@ -131,9 +131,11 @@ namespace MSSQLBackupPipe.StdPlugins.Storage
             return new Stream[] { fileInfo.Open(FileMode.Open) };
         }
 
-        public string GetConfigHelp()
+        public string CommandLineHelp
         {
-            return @"local Usage:
+            get
+            {
+                return @"local Usage:
 This is a plugin to store or read a backup file.
 To reference a file, enter:
 local(path=<file>)
@@ -142,6 +144,7 @@ msbp.exe has an alias for the local plugin.  If it begins with file://, it is
 converted to the 'local' plugin equivalent.  file:///c:\model.bak is converted
 to local(path=c:\model.bak).
 ";
+            }
         }
 
         public void CleanupOnAbort()

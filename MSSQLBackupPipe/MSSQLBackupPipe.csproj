@@ -50,7 +50,7 @@
       <Project>{486443C8-A843-409A-8A23-EAC5325A5171}</Project>
       <Name>MSSQLBackupPipe.Common</Name>
     </ProjectReference>
-    <ProjectReference Include="..\MSSQLBackupPipe.StdPlugins\MSSQLBackupPipe.StdPlugins.csproj">
+    <ProjectReference Include="..\MSBackupPipe.StdPlugins\MSBackupPipe.StdPlugins.csproj">
       <Project>{FD720360-0D0F-410B-990E-36DE4BEB9F23}</Project>
       <Name>MSSQLBackupPipe.StdPlugins</Name>
     </ProjectReference>

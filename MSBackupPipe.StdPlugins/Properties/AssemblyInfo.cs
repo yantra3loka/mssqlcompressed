@@ -1,15 +1,16 @@
 ﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System;
 
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("MSSQLBackupPipe.StdPlugins")]
+[assembly: AssemblyTitle("MSBackupPipe.StdPlugins")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("MSSQL Compressed Backup")]
-[assembly: AssemblyProduct("MSSQLBackupPipe.StdPlugins")]
+[assembly: AssemblyProduct("MSBackupPipe.StdPlugins")]
 [assembly: AssemblyCopyright("Copyright © Clay Lenhart 2009")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -34,3 +35,4 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyVersion("1.2.*")]
 [assembly: AssemblyFileVersion("1.2")]
 
+[assembly: CLSCompliant(true)]

@@ -4,7 +4,7 @@ using System.Text;
 using System.Reflection;
 using System.IO;
 
-using MSSQLBackupPipe.StdPlugins;
+using MSBackupPipe.StdPlugins;
 using MSBackupPipe.VirtualBackupDevice;
 
 namespace MSSQLBackupPipe.Common
@@ -171,7 +171,7 @@ namespace MSSQLBackupPipe.Common
                 {
                     ConfigPair config = pipelineConfig[i];
 
-                    MSSQLBackupPipe.StdPlugins.IBackupTransformer tran = config.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as MSSQLBackupPipe.StdPlugins.IBackupTransformer;
+                    IBackupTransformer tran = config.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupTransformer;
                     if (tran == null)
                     {
                         throw new ArgumentException(string.Format("Unable to create pipe component: {0}", config.TransformationType.Name));
@@ -231,7 +231,7 @@ namespace MSSQLBackupPipe.Common
 
                                 if (test != null)
                                 {
-                                    string name = test.GetName().ToLowerInvariant();
+                                    string name = test.Name.ToLowerInvariant();
 
                                     if (name.Contains("|") || name.Contains("("))
                                     {

@@ -24,19 +24,19 @@ using System.Text;
 using System.Data;
 using System.Data.SqlClient;
 
-namespace MSSQLBackupPipe.StdPlugins.Database
+namespace MSBackupPipe.StdPlugins.Database
 {
     public class DatabaseSource : IBackupDatabase
     {
 
         #region IBackupDatabase Members
 
-        public string GetName()
+        public string Name
         {
-            return "db";
+            get { return "db"; }
         }
 
-        public void ConfigureBackupCommand(string config, List<string> deviceNames, SqlCommand cmd)
+        public void ConfigureBackupCommand(string config, IEnumerable<string> deviceNames, SqlCommand cmd)
         {
             Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config, "FILE", "FILEGROUP");
             Dictionary<string, List<string>> parsedArrayConfig = ConfigUtil.ParseArrayConfig(config);
@@ -216,7 +216,9 @@ namespace MSSQLBackupPipe.StdPlugins.Database
 
             cmd.CommandType = CommandType.Text;
 
-            List<string> devSql = deviceNames.ConvertAll<string>(delegate(string devName)
+
+            List<string> tempDevs = new List<string>(deviceNames);
+            List<string> devSql = tempDevs.ConvertAll<string>(delegate(string devName)
             {
                 return string.Format("VIRTUAL_DEVICE='{0}'", devName);
             });
@@ -260,7 +262,7 @@ namespace MSSQLBackupPipe.StdPlugins.Database
         }
 
 
-        public void ConfigureRestoreCommand(string config, List<string> deviceNames, SqlCommand cmd)
+        public void ConfigureRestoreCommand(string config, IEnumerable<string> deviceNames, SqlCommand cmd)
         {
             Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config, "FILE", "FILEGROUP", "MOVE");
             Dictionary<string, List<string>> parsedArrayConfig = ConfigUtil.ParseArrayConfig(config);
@@ -606,7 +608,8 @@ namespace MSSQLBackupPipe.StdPlugins.Database
 
 
             cmd.CommandType = CommandType.Text;
-            List<string> devSql = deviceNames.ConvertAll<string>(delegate(string devName)
+            List<string> tempDevs = new List<string>(deviceNames);
+            List<string> devSql = tempDevs.ConvertAll<string>(delegate(string devName)
                 {
                     return string.Format("VIRTUAL_DEVICE='{0}'", devName);
                 });
@@ -614,9 +617,11 @@ namespace MSSQLBackupPipe.StdPlugins.Database
             cmd.CommandText = string.Format("RESTORE {0} @databasename {1}FROM {2}{3};", databaseOrLog, filegroupClause, string.Join(",", devSql.ToArray()), withClause);
         }
 
-        public string GetConfigHelp()
+        public string CommandLineHelp
         {
-            return @"db Usage:
+            get
+            {
+                return @"db Usage:
     db(database=<dbname>;instance=<instancename>)
 <dbname> should be the database name without any brackets.  
 <instancename> should only be the name of the instance after the slash.  If you
@@ -628,6 +633,7 @@ If you have a cluster, please see the online documentation about the ClusterNetw
 This plugin can only connect to SQL Server locally.
 
 msbp.exe has an alias for the db plugin.  A database name in brackets, like [model] is converted to db(database=model).";
+            }
         }
 
         #endregion

@@ -22,9 +22,9 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace MSSQLBackupPipe.StdPlugins
+namespace MSBackupPipe.StdPlugins
 {
-    public static class ConfigUtil
+    internal static class ConfigUtil
     {
         public static Dictionary<string, string> ParseConfig(string s, params string[] excludeNames)
         {

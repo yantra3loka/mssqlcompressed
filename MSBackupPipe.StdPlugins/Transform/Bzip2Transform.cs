@@ -1,4 +1,4 @@
-/*
+﻿/*
 	Copyright 2008 Clay Lenhart <clay@lenharts.net>
 
 
@@ -18,39 +18,41 @@
     along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
 using System;
 using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
+using ICSharpCode.SharpZipLib.BZip2;
 
-using ICSharpCode.SharpZipLib.GZip;
 
-
-namespace MSSQLBackupPipe.StdPlugins
+namespace MSBackupPipe.StdPlugins
 {
-    public class GzipTransform : IBackupTransformer
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId = "Bzip")]
+    public class Bzip2Transform : IBackupTransformer
     {
 
         #region IBackupTransformer Members
 
-        public Stream GetBackupWriter(string config, Stream writeToStream)
+        public  Stream GetBackupWriter(string config, Stream writeToStream)
         {
             Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
-            int level = 9;
+            int level = 1;
             string sLevel;
             if (parsedConfig.TryGetValue("level", out sLevel))
             {
                 if (!int.TryParse(sLevel, out level))
                 {
-                    throw new ArgumentException(string.Format("gzip: Unable to parse the integer: {0}", sLevel));
+                    throw new ArgumentException(string.Format("bzip2: Unable to parse the integer: {0}", sLevel));
                 }
             }
 
             if (level < 1 || level > 9)
             {
-                throw new ArgumentException(string.Format("gzip: Level must be between 1 and 9: {0}", level));
+                throw new ArgumentException(string.Format("bzip2: Level must be between 1 and 9: {0}", level));
             }
+
 
 
             parsedConfig.Remove("level");
@@ -59,36 +61,39 @@ namespace MSSQLBackupPipe.StdPlugins
 
             foreach (string key in parsedConfig.Keys)
             {
-                throw new ArgumentException(string.Format("gzip: Unknown parameter: {0}", key));
+                throw new ArgumentException(string.Format("bzip2: Unknown parameter: {0}", key));
             }
 
-            Console.WriteLine(string.Format("gzip: level = {0}", level));
+            Console.WriteLine(string.Format("bzip2: level = {0}", level));
 
-            return new GZipOutputStream(writeToStream, level);
+            return new BZip2OutputStream(writeToStream, level);
         }
 
-        public string GetName()
+        public string Name
         {
-            return "gzip";
+            get { return "bzip2"; }
         }
 
         public Stream GetRestoreReader(string config, Stream readFromStream)
         {
-            Console.WriteLine(string.Format("gzip"));
+            Console.WriteLine(string.Format("bzip2"));
 
-            return new GZipInputStream(readFromStream);
+            return new BZip2InputStream(readFromStream);
         }
 
-        public string GetConfigHelp()
+
+        public string CommandLineHelp
         {
-            return @"gzip Usage:
-gzip will compress (or uncompress) the data.
-By default gzip compresses with level=9.  You use a level from 1 to 9, for 
+            get
+            {
+                return @"bzip2 Usage:
+bzip2 will compress (or uncompress) the data.
+By default bzip2 compresses with level=1.  You use a level from 1 to 9, for 
 example:
-    gzip(level=5)
+    bzip(level=5)
 Level is ignored when restoring a database since the data is being uncompressed.";
+            }
         }
-
 
         #endregion
     }

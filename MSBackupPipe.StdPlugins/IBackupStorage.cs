@@ -23,11 +23,14 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
-namespace MSSQLBackupPipe.StdPlugins
+namespace MSBackupPipe.StdPlugins
 {
-    public interface IBackupTransformer : IBackupPlugin
+    public interface IBackupStorage : IBackupPlugin
     {
-        Stream GetBackupWriter(string config, Stream writeToStream);
-        Stream GetRestoreReader(string config, Stream readFromStream);
+        Stream[] GetBackupWriter(string config);
+        Stream[] GetRestoreReader(string config);
+        int GetNumberOfDevices(string config);
+        void CleanupOnAbort();
+
     }
 }

@@ -25,7 +25,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Threading;
 
-using MSSQLBackupPipe.StdPlugins;
+using MSBackupPipe.StdPlugins;
 
 namespace MSSQLBackupPipe.Common
 {

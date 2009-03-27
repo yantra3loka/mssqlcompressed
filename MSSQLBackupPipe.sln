@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSSQLBackupPipe", "MSSQLBackupPipe\MSSQLBackupPipe.csproj", "{64799887-2FDF-4B40-8757-7B2E4B0F735D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSSQLBackupPipe.StdPlugins", "MSSQLBackupPipe.StdPlugins\MSSQLBackupPipe.StdPlugins.csproj", "{FD720360-0D0F-410B-990E-36DE4BEB9F23}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSBackupPipe.StdPlugins", "MSBackupPipe.StdPlugins\MSBackupPipe.StdPlugins.csproj", "{FD720360-0D0F-410B-990E-36DE4BEB9F23}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MSBackupPipe.VirtualBackupDevice", "MSBackupPipe.VirtualBackupDevice\MSBackupPipe.VirtualBackupDevice.vcproj", "{75864945-89FD-43ED-B0E0-18813A5BD2DD}"
 EndProject

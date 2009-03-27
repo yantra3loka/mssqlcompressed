@@ -52,7 +52,7 @@
     <Compile Include="SqlThread.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\MSSQLBackupPipe.StdPlugins\MSSQLBackupPipe.StdPlugins.csproj">
+    <ProjectReference Include="..\MSBackupPipe.StdPlugins\MSBackupPipe.StdPlugins.csproj">
       <Project>{FD720360-0D0F-410B-990E-36DE4BEB9F23}</Project>
       <Name>MSSQLBackupPipe.StdPlugins</Name>
     </ProjectReference>

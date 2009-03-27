@@ -23,7 +23,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
-namespace MSSQLBackupPipe.StdPlugins.Transform
+namespace MSBackupPipe.StdPlugins.Transform
 {
     public class RateTransform : IBackupTransformer
     {
@@ -70,16 +70,19 @@ namespace MSSQLBackupPipe.StdPlugins.Transform
 
         #region IBackupPlugin Members
 
-        public string GetName()
+        public string Name
         {
-            return "rate";
+            get { return "rate"; }
         }
 
-        public string GetConfigHelp()
+        public string CommandLineHelp
         {
-            return @"rate Usage:
+            get
+            {
+                return @"rate Usage:
 You can slow down the pipeline to ensure the server is not overloaded.  Enter a rate in MB like:
     rate(rateMB=10.0)";
+            }
         }
 
         #endregion

@@ -21,16 +21,13 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.IO;
 
-namespace MSSQLBackupPipe.StdPlugins
+namespace MSBackupPipe.StdPlugins
 {
-    public interface IBackupStorage : IBackupPlugin
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId = "Plugin")]
+    public interface IBackupPlugin
     {
-        Stream[] GetBackupWriter(string config);
-        Stream[] GetRestoreReader(string config);
-        int GetNumberOfDevices(string config);
-        void CleanupOnAbort();
-
+        string Name { get; }
+        string CommandLineHelp { get; }
     }
 }

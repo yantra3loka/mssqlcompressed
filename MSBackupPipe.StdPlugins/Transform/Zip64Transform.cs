@@ -26,7 +26,7 @@ using System.IO;
 
 using ICSharpCode.SharpZipLib.Zip;
 
-namespace MSSQLBackupPipe.StdPlugins
+namespace MSBackupPipe.StdPlugins
 {
     public class Zip64Transform : IBackupTransformer
     {
@@ -76,9 +76,9 @@ namespace MSSQLBackupPipe.StdPlugins
             return new OneFileZipOutputStream(filename, level, writeToStream);
         }
 
-        public string GetName()
+        public string Name
         {
-            return "zip64";
+            get { return "zip64"; }
         }
 
         public Stream GetRestoreReader(string config, Stream readFromStream)
@@ -104,9 +104,11 @@ namespace MSSQLBackupPipe.StdPlugins
             }
         }
 
-        public string GetConfigHelp()
+        public string CommandLineHelp
         {
-            return @"zip64 Usage:
+            get
+            {
+                return @"zip64 Usage:
 zip64 will compress (or uncompress) the data.
 By default zip64 compresses with level=7, and the internal filename is 
 database.bak.  You use a level from 1 to 9, for 
@@ -119,6 +121,7 @@ zip64 creates a zip file in the new zip64 format to overcome 4 GB uncompressed
 file limitation.
 ";
 
+            }
         }
 
         #endregion
@@ -143,7 +146,6 @@ file limitation.
                 base.PutNextEntry(entry);
                 base.SetLevel(compressionLevel);
 
-                mDisposed = false;
             }
 
 
@@ -185,13 +187,12 @@ file limitation.
 
                 if (entry == null)
                 {
-                    throw new NullReferenceException("The zip file is empty.");
+                    throw new FileNotFoundException("The zip file is empty.");
                 }
 
 
 
 
-                mDisposed = false;
             }
 
 
@@ -241,13 +242,11 @@ file limitation.
 
                 if (entry == null)
                 {
-                    throw new NullReferenceException("The zip file not found.");
+                    throw new FileNotFoundException("The zip file not found.");
                 }
 
 
 
-
-                mDisposed = false;
             }
 
 

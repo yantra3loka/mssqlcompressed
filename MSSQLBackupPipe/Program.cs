@@ -28,7 +28,7 @@ using System.Reflection;
 using System.Diagnostics;
 
 using MSBackupPipe.VirtualBackupDevice;
-using MSSQLBackupPipe.StdPlugins;
+using MSBackupPipe.StdPlugins;
 using MSSQLBackupPipe.Common;
 
 namespace MSSQLBackupPipe
@@ -439,7 +439,7 @@ namespace MSSQLBackupPipe
             foreach (string key in components.Keys)
             {
                 IBackupPlugin db = components[key].GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupPlugin;
-                Console.WriteLine("\t" + db.GetName());
+                Console.WriteLine("\t" + db.Name);
             }
         }
 
@@ -456,7 +456,7 @@ namespace MSSQLBackupPipe
             if (components.ContainsKey(pluginName))
             {
                 IBackupPlugin db = components[pluginName].GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupPlugin;
-                Console.WriteLine(db.GetConfigHelp());
+                Console.WriteLine(db.CommandLineHelp);
             }
         }
 

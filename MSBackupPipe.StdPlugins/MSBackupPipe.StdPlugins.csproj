@@ -7,8 +7,8 @@
     <ProjectGuid>{FD720360-0D0F-410B-990E-36DE4BEB9F23}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>MSSQLBackupPipe.StdPlugins</RootNamespace>
-    <AssemblyName>MSSQLBackupPipe.StdPlugins</AssemblyName>
+    <RootNamespace>MSBackupPipe.StdPlugins</RootNamespace>
+    <AssemblyName>MSBackupPipe.StdPlugins</AssemblyName>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>MSSQLCompressedBackup.snk</AssemblyOriginatorKeyFile>
     <FileUpgradeFlags>
@@ -26,6 +26,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <CodeAnalysisRules>-Microsoft.Globalization#CA1301;-Microsoft.Globalization#CA1302;-Microsoft.Globalization#CA1308;-Microsoft.Globalization#CA1306;-Microsoft.Globalization#CA1304;-Microsoft.Globalization#CA1305;-Microsoft.Globalization#CA2101;-Microsoft.Globalization#CA1300;-Microsoft.Globalization#CA1307;-Microsoft.Globalization#CA1309</CodeAnalysisRules>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -47,6 +48,7 @@
   <ItemGroup>
     <Compile Include="ConfigUtil.cs" />
     <Compile Include="Database\DatabaseSource.cs" />
+    <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="IBackupDatabase.cs" />
     <Compile Include="IBackupPlugin.cs" />
     <Compile Include="IBackupStorage.cs" />
