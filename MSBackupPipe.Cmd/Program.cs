@@ -31,7 +31,7 @@ using MSBackupPipe.VirtualBackupDevice;
 using MSBackupPipe.StdPlugins;
 using MSBackupPipe.Common;
 
-namespace MSSQLBackupPipe
+namespace MSBackupPipe.Cmd
 {
     class Program
     {

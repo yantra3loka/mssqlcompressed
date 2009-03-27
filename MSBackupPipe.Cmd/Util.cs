@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace MSSQLBackupPipe
+namespace MSBackupPipe.Cmd
 {
-    public static class Util
+    internal static class Util
     {
         public static void WriteError(Exception e)
         {

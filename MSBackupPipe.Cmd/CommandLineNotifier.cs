@@ -4,12 +4,12 @@ using System.Text;
 
 using MSBackupPipe.Common;
 
-namespace MSSQLBackupPipe
+namespace MSBackupPipe.Cmd
 {
     class CommandLineNotifier :IUpdateNotification
     {
         private bool mIsBackup;
-        private float mPreviousHighestPercent = 0;
+        private float mPreviousHighestPercent;
 
         public CommandLineNotifier(bool isBackup)
         {
