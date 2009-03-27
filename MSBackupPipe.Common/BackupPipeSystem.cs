@@ -7,7 +7,7 @@ using System.IO;
 using MSBackupPipe.StdPlugins;
 using MSBackupPipe.VirtualBackupDevice;
 
-namespace MSSQLBackupPipe.Common
+namespace MSBackupPipe.Common
 {
     public static class BackupPipeSystem
     {
@@ -52,7 +52,7 @@ namespace MSSQLBackupPipe.Common
             try
             {
 
-                int numDevices = storage.GetNumberOfDevices(storageConfig.ConfigString);
+                int numDevices = storage.GetNumberOfDevices(storageConfig.Parameters);
 
 
 
@@ -64,16 +64,16 @@ namespace MSSQLBackupPipe.Common
                     {
                         bool sqlStarted = false;
                         bool sqlFinished = false;
-                        ExecutionExceptions exceptions = new ExecutionExceptions();
+                        ParallelExecutionException exceptions = new ParallelExecutionException();
 
                         try
                         {
 
-                            string instanceName = databaseComp.GetInstanceName(databaseConfig.ConfigString);
-                            string clusterNetworkName = databaseComp.GetClusterNetworkName(databaseConfig.ConfigString);
-                            List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.ConfigString, isBackup, updateNotifier);
+                            string instanceName = databaseComp.GetInstanceName(databaseConfig.Parameters);
+                            string clusterNetworkName = databaseComp.GetClusterNetworkName(databaseConfig.Parameters);
+                            List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.Parameters, isBackup, updateNotifier);
 
-                            using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.ConfigString) : storage.GetRestoreReader(storageConfig.ConfigString)))
+                            using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.Parameters) : storage.GetRestoreReader(storageConfig.Parameters)))
                             using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup)))
                             {
 
@@ -176,7 +176,7 @@ namespace MSSQLBackupPipe.Common
                     {
                         throw new ArgumentException(string.Format("Unable to create pipe component: {0}", config.TransformationType.Name));
                     }
-                    topStream = isBackup ? tran.GetBackupWriter(config.ConfigString, topStream) : tran.GetRestoreReader(config.ConfigString, topStream);
+                    topStream = isBackup ? tran.GetBackupWriter(config.Parameters, topStream) : tran.GetRestoreReader(config.Parameters, topStream);
                 }
                 result.Add(topStream);
             }
@@ -199,7 +199,7 @@ namespace MSSQLBackupPipe.Common
                 {
                     dll = Assembly.LoadFrom(file.FullName);
                 }
-                catch
+                catch (Exception)
                 { }
                 if (dll != null)
                 {

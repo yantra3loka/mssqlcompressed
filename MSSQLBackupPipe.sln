@@ -12,7 +12,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleasePackaging", "Release
 		{64799887-2FDF-4B40-8757-7B2E4B0F735D} = {64799887-2FDF-4B40-8757-7B2E4B0F735D}
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSSQLBackupPipe.Common", "MSSQLBackupPipe.Common\MSSQLBackupPipe.Common.csproj", "{486443C8-A843-409A-8A23-EAC5325A5171}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSBackupPipe.Common", "MSBackupPipe.Common\MSBackupPipe.Common.csproj", "{486443C8-A843-409A-8A23-EAC5325A5171}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

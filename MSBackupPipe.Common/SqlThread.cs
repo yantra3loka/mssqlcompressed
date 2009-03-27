@@ -27,7 +27,7 @@ using System.Threading;
 
 using MSBackupPipe.StdPlugins;
 
-namespace MSSQLBackupPipe.Common
+namespace MSBackupPipe.Common
 {
     class SqlThread : IDisposable
     {

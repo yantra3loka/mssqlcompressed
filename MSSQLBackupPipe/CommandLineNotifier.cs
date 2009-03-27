@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-using MSSQLBackupPipe.Common;
+using MSBackupPipe.Common;
 
 namespace MSSQLBackupPipe
 {

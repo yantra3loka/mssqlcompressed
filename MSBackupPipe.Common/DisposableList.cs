@@ -23,7 +23,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace MSSQLBackupPipe.Common
+namespace MSBackupPipe.Common
 {
     class DisposableList<T> : List<T>, IDisposable where T : IDisposable
     {

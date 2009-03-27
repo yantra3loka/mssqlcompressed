@@ -24,12 +24,12 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace MSSQLBackupPipe.Common
+namespace MSBackupPipe.Common
 {
     public class ConfigPair
     {
         public Type TransformationType;
-        public string ConfigString;
+        public string Parameters;
 
     }
 }

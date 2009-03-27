@@ -29,7 +29,7 @@ using System.Diagnostics;
 
 using MSBackupPipe.VirtualBackupDevice;
 using MSBackupPipe.StdPlugins;
-using MSSQLBackupPipe.Common;
+using MSBackupPipe.Common;
 
 namespace MSSQLBackupPipe
 {
@@ -110,7 +110,7 @@ namespace MSSQLBackupPipe
                                     BackupPipeSystem.Backup(databaseConfig, pipelineConfig, storageConfig, notifier);
                                     return 0;
                                 }
-                                catch (ExecutionExceptions ee)
+                                catch (ParallelExecutionException ee)
                                 {
                                     HandleExecutionExceptions(ee, true);
                                     return -1;
@@ -137,7 +137,7 @@ namespace MSSQLBackupPipe
                                 BackupPipeSystem.Restore(storageConfig, pipelineConfig, databaseConfig, notifier);
                                 return 0;
                             }
-                            catch (ExecutionExceptions ee)
+                            catch (ParallelExecutionException ee)
                             {
                                 HandleExecutionExceptions(ee, false);
                                 return -1;
@@ -199,7 +199,7 @@ namespace MSSQLBackupPipe
         }
 
 
-        private static void HandleExecutionExceptions(ExecutionExceptions ee, bool isBackup)
+        private static void HandleExecutionExceptions(ParallelExecutionException ee, bool isBackup)
         {
             if (ee.ThreadException != null)
             {
@@ -374,7 +374,7 @@ namespace MSSQLBackupPipe
             Type foundType;
             if (pipelineComponents.TryGetValue(componentName.ToLowerInvariant(), out foundType))
             {
-                config.ConfigString = configString;
+                config.Parameters = configString;
                 config.TransformationType = foundType;
             }
             else

@@ -46,7 +46,7 @@
     <Compile Include="Util.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\MSSQLBackupPipe.Common\MSSQLBackupPipe.Common.csproj">
+    <ProjectReference Include="..\MSBackupPipe.Common\MSBackupPipe.Common.csproj">
       <Project>{486443C8-A843-409A-8A23-EAC5325A5171}</Project>
       <Name>MSSQLBackupPipe.Common</Name>
     </ProjectReference>

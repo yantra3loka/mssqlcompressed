@@ -28,15 +28,15 @@ using System.Reflection;
 using MSBackupPipe.VirtualBackupDevice;
 using MSBackupPipe.StdPlugins;
 
-namespace MSSQLBackupPipe.Common
+namespace MSBackupPipe.Common
 {
     class DeviceThread : IDisposable
     {
 
         private bool mDisposed;
-        private Stream mTopOfPipeline = null;
-        private VirtualDevice mDevice = null;
-        private VirtualDeviceSet mDeviceSet = null;
+        private Stream mTopOfPipeline;
+        private VirtualDevice mDevice;
+        private VirtualDeviceSet mDeviceSet;
         private bool mIsBackup;
 
 
