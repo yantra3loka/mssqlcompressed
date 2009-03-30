@@ -30,24 +30,39 @@ namespace MSBackupPipe.StdPlugins
 {
     public class Zip64Transform : IBackupTransformer
     {
+
+        private static Dictionary<string, ParameterInfo> mBackupParamSchema;
+        private static Dictionary<string, ParameterInfo> mRestoreParamSchema;
+        static Zip64Transform()
+        {
+            mBackupParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
+            mBackupParamSchema.Add("level", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
+            mBackupParamSchema.Add("filename", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
+
+
+            mRestoreParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
+            mRestoreParamSchema.Add("filename", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
+        }
+
+
         #region IBackupTransformer Members
 
-        public Stream GetBackupWriter(string config, Stream writeToStream)
+        public Stream GetBackupWriter(Dictionary<string, List<string>> config, Stream writeToStream)
         {
-            Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
+
+            ParameterInfo.ValidateParams(mBackupParamSchema, config);
 
             string filename = "database.bak";
             int level = 7;
 
-            string sLevel;
-            if (parsedConfig.TryGetValue("level", out sLevel))
+            List<string> sLevel;
+            if (config.TryGetValue("level", out sLevel))
             {
-                if (!int.TryParse(sLevel, out level))
+                if (!int.TryParse(sLevel[0], out level))
                 {
                     throw new ArgumentException(string.Format("zip64: Unable to parse the integer: {0}", sLevel));
                 }
             }
-            parsedConfig.Remove("level");
 
 
             if (level < 1 || level > 9)
@@ -55,19 +70,12 @@ namespace MSBackupPipe.StdPlugins
                 throw new ArgumentException(string.Format("zip64: Level must be between 1 and 9: {0}", level));
             }
 
-            if (parsedConfig.ContainsKey("filename"))
+            if (config.ContainsKey("filename"))
             {
-                filename = parsedConfig["filename"];
+                filename = config["filename"][0];
             }
 
-            parsedConfig.Remove("filename");
 
-
-
-            foreach (string key in parsedConfig.Keys)
-            {
-                throw new ArgumentException(string.Format("zip64: Unknown parameter: {0}", key));
-            }
 
             Console.WriteLine(string.Format("zip64: level = {0}, filename={1}", level, filename));
 
@@ -81,14 +89,14 @@ namespace MSBackupPipe.StdPlugins
             get { return "zip64"; }
         }
 
-        public Stream GetRestoreReader(string config, Stream readFromStream)
+        public Stream GetRestoreReader(Dictionary<string, List<string>> config, Stream readFromStream)
         {
-            Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
+            ParameterInfo.ValidateParams(mRestoreParamSchema, config);
 
             string filename = null;
-            if (parsedConfig.ContainsKey("filename"))
+            if (config.ContainsKey("filename"))
             {
-                filename = parsedConfig["filename"];
+                filename = config["filename"][0];
             }
 
 

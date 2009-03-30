@@ -27,9 +27,9 @@ namespace MSBackupPipe.StdPlugins
 {
     public interface IBackupDatabase : IBackupPlugin
     {
-        void ConfigureBackupCommand(string config, IEnumerable<string> deviceNames, SqlCommand cmd);
-        void ConfigureRestoreCommand(string config, IEnumerable<string> deviceNames, SqlCommand cmd);
-        string GetInstanceName(string config);
-        string GetClusterNetworkName(string config);
+        void ConfigureBackupCommand(Dictionary<string, List<string>> config, IEnumerable<string> deviceNames, SqlCommand cmd);
+        void ConfigureRestoreCommand(Dictionary<string, List<string>> config, IEnumerable<string> deviceNames, SqlCommand cmd);
+        string GetInstanceName(Dictionary<string, List<string>> config);
+        string GetClusterNetworkName(Dictionary<string, List<string>> config);
     }
 }

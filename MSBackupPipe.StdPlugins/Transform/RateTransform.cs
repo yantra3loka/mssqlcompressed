@@ -30,30 +30,32 @@ namespace MSBackupPipe.StdPlugins.Transform
 
         #region IBackupTransformer Members
 
-        public Stream GetBackupWriter(string config, Stream writeToStream)
+        private static Dictionary<string, ParameterInfo> mBackupParamSchema;
+        static RateTransform()
         {
-            Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
+            mBackupParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
+            mBackupParamSchema.Add("ratemb", new ParameterInfo() { AllowMultipleValues = false, IsRequired = true });
+        }
+
+        public Stream GetBackupWriter(Dictionary<string, List<string>> config, Stream writeToStream)
+        {
+            ParameterInfo.ValidateParams(mBackupParamSchema, config);
+
+
+
 
             double rateMb;
 
-            if (!parsedConfig.ContainsKey("ratemb"))
+            //if (!parsedConfig.ContainsKey("ratemb"))
+            //{
+            //    throw new ArgumentException("rate: The ratemb parameter is missing.  Use the rate option like rate(ratemb=10)");
+            //}
+
+            if (!double.TryParse(config["ratemb"][0], out rateMb))
             {
-                throw new ArgumentException("rate: The ratemb parameter is missing.  Use the rate option like rate(ratemb=10)");
+                throw new ArgumentException(string.Format("rate: Unable to parse the number: {0}", config["ratemb"][0]));
             }
 
-            if (!double.TryParse(parsedConfig["ratemb"], out rateMb))
-            {
-                throw new ArgumentException(string.Format("rate: Unable to parse the number: {0}", parsedConfig["ratemb"]));
-            }
-
-            parsedConfig.Remove("ratemb");
-
-
-
-            foreach (string key in parsedConfig.Keys)
-            {
-                throw new ArgumentException(string.Format("rate: Unknown parameter: {0}", key));
-            }
 
 
             Console.WriteLine(string.Format("rate: ratemb = {0}", rateMb));
@@ -61,7 +63,7 @@ namespace MSBackupPipe.StdPlugins.Transform
             return new RateLimitStream(writeToStream, rateMb);
         }
 
-        public Stream GetRestoreReader(string config, Stream readFromStream)
+        public Stream GetRestoreReader(Dictionary<string, List<string>> config, Stream readFromStream)
         {
             return GetBackupWriter(config, readFromStream);
         }

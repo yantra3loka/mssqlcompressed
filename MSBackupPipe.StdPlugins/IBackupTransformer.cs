@@ -27,7 +27,7 @@ namespace MSBackupPipe.StdPlugins
 {
     public interface IBackupTransformer : IBackupPlugin
     {
-        Stream GetBackupWriter(string config, Stream writeToStream);
-        Stream GetRestoreReader(string config, Stream readFromStream);
+        Stream GetBackupWriter(Dictionary<string, List<string>> config, Stream writeToStream);
+        Stream GetRestoreReader(Dictionary<string, List<string>> config, Stream readFromStream);
     }
 }

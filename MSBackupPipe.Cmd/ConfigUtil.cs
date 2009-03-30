@@ -22,38 +22,11 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace MSBackupPipe.StdPlugins
+namespace MSBackupPipe.Cmd
 {
     internal static class ConfigUtil
     {
-        public static Dictionary<string, string> ParseConfig(string s, params string[] excludeNames)
-        {
-
-            Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
-
-            Dictionary<string, List<string>> arrayConfig = ParseArrayConfig(s);
-
-            foreach (string exName in excludeNames)
-            {
-                if (arrayConfig.ContainsKey(exName))
-                {
-                    arrayConfig.Remove(exName);
-                }
-            }
-
-            foreach (string name in arrayConfig.Keys)
-            {
-                List<string> valList = arrayConfig[name];
-                if (valList.Count > 1)
-                {
-                    throw new ArgumentException(string.Format("The paramenter, {0}, can only exist once.", name));
-                }
-
-                result.Add(name, valList[0]);
-            }
-
-            return result;
-        }
+        
 
 
         public static Dictionary<string, List<string>> ParseArrayConfig(string s)

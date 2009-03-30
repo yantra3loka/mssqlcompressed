@@ -32,17 +32,29 @@ namespace MSBackupPipe.StdPlugins
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId = "Bzip")]
     public class Bzip2Transform : IBackupTransformer
     {
+        private static Dictionary<string, ParameterInfo> mBackupParamSchema;
+        private static Dictionary<string, ParameterInfo> mRestoreParamSchema;
+        static Bzip2Transform()
+        {
+            mBackupParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
+            mBackupParamSchema.Add("level", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
+
+
+            mRestoreParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
+        }
 
         #region IBackupTransformer Members
 
-        public  Stream GetBackupWriter(string config, Stream writeToStream)
+        public  Stream GetBackupWriter(Dictionary<string, List<string>> config, Stream writeToStream)
         {
-            Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
+
+            ParameterInfo.ValidateParams(mBackupParamSchema, config);
+
             int level = 1;
-            string sLevel;
-            if (parsedConfig.TryGetValue("level", out sLevel))
+            List<string> sLevel;
+            if (config.TryGetValue("level", out sLevel))
             {
-                if (!int.TryParse(sLevel, out level))
+                if (!int.TryParse(sLevel[0], out level))
                 {
                     throw new ArgumentException(string.Format("bzip2: Unable to parse the integer: {0}", sLevel));
                 }
@@ -55,14 +67,6 @@ namespace MSBackupPipe.StdPlugins
 
 
 
-            parsedConfig.Remove("level");
-
-
-
-            foreach (string key in parsedConfig.Keys)
-            {
-                throw new ArgumentException(string.Format("bzip2: Unknown parameter: {0}", key));
-            }
 
             Console.WriteLine(string.Format("bzip2: level = {0}", level));
 
@@ -74,8 +78,11 @@ namespace MSBackupPipe.StdPlugins
             get { return "bzip2"; }
         }
 
-        public Stream GetRestoreReader(string config, Stream readFromStream)
+        public Stream GetRestoreReader(Dictionary<string, List<string>> config, Stream readFromStream)
         {
+            ParameterInfo.ValidateParams(mRestoreParamSchema, config);
+
+
             Console.WriteLine(string.Format("bzip2"));
 
             return new BZip2InputStream(readFromStream);

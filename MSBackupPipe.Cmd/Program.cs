@@ -374,7 +374,7 @@ namespace MSBackupPipe.Cmd
             Type foundType;
             if (pipelineComponents.TryGetValue(componentName.ToLowerInvariant(), out foundType))
             {
-                config.Parameters = configString;
+                config.Parameters = ConfigUtil.ParseArrayConfig(configString);
                 config.TransformationType = foundType;
             }
             else

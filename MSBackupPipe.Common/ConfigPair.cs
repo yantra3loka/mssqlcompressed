@@ -29,7 +29,7 @@ namespace MSBackupPipe.Common
     public class ConfigPair
     {
         public Type TransformationType;
-        public string Parameters;
+        public Dictionary<string, List<string>> Parameters;
 
     }
 }

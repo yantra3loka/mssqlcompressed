@@ -30,6 +30,13 @@ namespace MSBackupPipe.StdPlugins.Storage
         private List<bool> mDeleteOnAbort = new List<bool>();
         private List<FileInfo> mFileInfosToDeleteOnAbort = new List<FileInfo>();
 
+        private static Dictionary<string, ParameterInfo> mBackupParamSchema;
+        static LocalStorage()
+        {
+            mBackupParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
+            mBackupParamSchema.Add("path", new ParameterInfo() { AllowMultipleValues = true, IsRequired = true });
+        }
+
         #region IBackupStorage Members
 
         public string Name
@@ -37,40 +44,31 @@ namespace MSBackupPipe.StdPlugins.Storage
             get { return "local"; }
         }
 
-        public int GetNumberOfDevices(string config)
+        public int GetNumberOfDevices(Dictionary<string, List<string>> config)
         {
-            Dictionary<string, List<string>> parsedConfig = ConfigUtil.ParseArrayConfig(config);
-
-            if (!parsedConfig.ContainsKey("path"))
-            {
-                throw new ArgumentException("local: The path property is required.");
-            }
+            ParameterInfo.ValidateParams(mBackupParamSchema, config);
 
 
-            return parsedConfig["path"].Count;
+
+            return config["path"].Count;
         }
 
 
-        public Stream[] GetBackupWriter(string config)
+        public Stream[] GetBackupWriter(Dictionary<string, List<string>> config)
         {
 
             mDeleteOnAbort.Clear();
             mFileInfosToDeleteOnAbort.Clear();
 
-            Dictionary<string, List<string>> parsedConfig = ConfigUtil.ParseArrayConfig(config);
+            ParameterInfo.ValidateParams(mBackupParamSchema, config);
 
-            if (!parsedConfig.ContainsKey("path"))
-            {
-                throw new ArgumentException("local: The path property is required.");
-            }
 
-            List<string> paths = parsedConfig["path"];
+            List<string> paths = config["path"];
             List<FileInfo> fileInfos = paths.ConvertAll<FileInfo>(delegate(string path)
             {
                 return new FileInfo(path);
             });
 
-            parsedConfig.Remove("path");
 
             // initialize to false:
             mDeleteOnAbort = new List<bool>(new bool[fileInfos.Count]);
@@ -82,10 +80,6 @@ namespace MSBackupPipe.StdPlugins.Storage
             }
 
 
-            foreach (string key in parsedConfig.Keys)
-            {
-                throw new ArgumentException(string.Format("local: Unknown parameter: {0}", key));
-            }
 
             Console.WriteLine(string.Format("local:"));
             foreach (FileInfo fi in fileInfos)
@@ -102,33 +96,38 @@ namespace MSBackupPipe.StdPlugins.Storage
             return results.ToArray();
         }
 
-        public Stream[] GetRestoreReader(string config)
+        public Stream[] GetRestoreReader(Dictionary<string, List<string>> config)
         {
+
 
             mDeleteOnAbort.Clear();
             mFileInfosToDeleteOnAbort.Clear();
 
+            ParameterInfo.ValidateParams(mBackupParamSchema, config);
 
-            Dictionary<string, string> parsedConfig = ConfigUtil.ParseConfig(config);
 
-            if (!parsedConfig.ContainsKey("path"))
+
+            List<string> paths = config["path"];
+            List<FileInfo> fileInfos = paths.ConvertAll<FileInfo>(delegate(string path)
             {
-                throw new ArgumentException("local: The path property is required.");
+                return new FileInfo(path);
+            });
+
+
+
+            Console.WriteLine(string.Format("local:"));
+            foreach (FileInfo fi in fileInfos)
+            {
+                Console.WriteLine(string.Format("\tpath={0}", fi.FullName));
             }
 
-            FileInfo fileInfo = new FileInfo(parsedConfig["path"]);
-            parsedConfig.Remove("path");
-
-
-
-            foreach (string key in parsedConfig.Keys)
+            List<Stream> results = new List<Stream>(fileInfos.Count);
+            foreach (FileInfo fi in fileInfos)
             {
-                throw new ArgumentException(string.Format("local: Unknown parameter: {0}", key));
+                results.Add(fi.Open(FileMode.Create));
             }
 
-            Console.WriteLine(string.Format("local: path={0}", fileInfo.FullName));
-
-            return new Stream[] { fileInfo.Open(FileMode.Open) };
+            return results.ToArray();
         }
 
         public string CommandLineHelp

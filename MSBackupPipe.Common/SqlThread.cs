@@ -40,7 +40,7 @@ namespace MSBackupPipe.Common
         /// <summary>
         /// Returns the auto-generated device names
         /// </summary>
-        public List<string> PreConnect(string clusterNetworkName, string instanceName, string deviceSetName, int numDevices, IBackupDatabase dbComponent, string dbConfig, bool isBackup, IUpdateNotification notifier)
+        public List<string> PreConnect(string clusterNetworkName, string instanceName, string deviceSetName, int numDevices, IBackupDatabase dbComponent, Dictionary<string, List<string>> dbConfig, bool isBackup, IUpdateNotification notifier)
         {
             string serverConnectionName = clusterNetworkName == null ? "." : clusterNetworkName;
             string dataSource = string.IsNullOrEmpty(instanceName) ? serverConnectionName : string.Format(@"{0}\{1}", serverConnectionName, instanceName);
