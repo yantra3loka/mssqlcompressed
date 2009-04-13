@@ -1,32 +1,18 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 9.00
-# Visual Studio 2005
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSSQLBackupPipe", "MSSQLBackupPipe\MSSQLBackupPipe.csproj", "{64799887-2FDF-4B40-8757-7B2E4B0F735D}"
-	ProjectSection(WebsiteProperties) = preProject
-		Debug.AspNetCompiler.Debug = "True"
-		Release.AspNetCompiler.Debug = "False"
-	EndProjectSection
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSBackupPipe.Cmd", "MSBackupPipe.Cmd\MSBackupPipe.Cmd.csproj", "{64799887-2FDF-4B40-8757-7B2E4B0F735D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSSQLBackupPipe.StdPlugins", "MSSQLBackupPipe.StdPlugins\MSSQLBackupPipe.StdPlugins.csproj", "{FD720360-0D0F-410B-990E-36DE4BEB9F23}"
-	ProjectSection(WebsiteProperties) = preProject
-		Debug.AspNetCompiler.Debug = "True"
-		Release.AspNetCompiler.Debug = "False"
-	EndProjectSection
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSBackupPipe.StdPlugins", "MSBackupPipe.StdPlugins\MSBackupPipe.StdPlugins.csproj", "{FD720360-0D0F-410B-990E-36DE4BEB9F23}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualBackupDevice", "VirtualBackupDevice\VirtualBackupDevice.vcproj", "{75864945-89FD-43ED-B0E0-18813A5BD2DD}"
-	ProjectSection(WebsiteProperties) = preProject
-		Debug.AspNetCompiler.Debug = "True"
-		Release.AspNetCompiler.Debug = "False"
-	EndProjectSection
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MSBackupPipe.VirtualBackupDevice", "MSBackupPipe.VirtualBackupDevice\MSBackupPipe.VirtualBackupDevice.vcproj", "{75864945-89FD-43ED-B0E0-18813A5BD2DD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleasePackaging", "ReleasePackaging\ReleasePackaging.csproj", "{9C8081AF-4FB8-4A85-B205-C385BCC36E01}"
-	ProjectSection(WebsiteProperties) = preProject
-		Debug.AspNetCompiler.Debug = "True"
-		Release.AspNetCompiler.Debug = "False"
-	EndProjectSection
 	ProjectSection(ProjectDependencies) = postProject
 		{64799887-2FDF-4B40-8757-7B2E4B0F735D} = {64799887-2FDF-4B40-8757-7B2E4B0F735D}
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSBackupPipe.Common", "MSBackupPipe.Common\MSBackupPipe.Common.csproj", "{486443C8-A843-409A-8A23-EAC5325A5171}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -64,8 +50,16 @@ Global
 		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Debug|x64.ActiveCfg = Debug|x64
 		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|Win32.ActiveCfg = Release|x86
 		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|Win32.Build.0 = Release|x86
-		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|x64.ActiveCfg = Release|x64
+		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|x64.ActiveCfg = Release|x86
 		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|x64.Build.0 = Release|x64
+		{486443C8-A843-409A-8A23-EAC5325A5171}.Debug|Win32.ActiveCfg = Debug|Any CPU
+		{486443C8-A843-409A-8A23-EAC5325A5171}.Debug|Win32.Build.0 = Debug|Any CPU
+		{486443C8-A843-409A-8A23-EAC5325A5171}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{486443C8-A843-409A-8A23-EAC5325A5171}.Debug|x64.Build.0 = Debug|Any CPU
+		{486443C8-A843-409A-8A23-EAC5325A5171}.Release|Win32.ActiveCfg = Release|Any CPU
+		{486443C8-A843-409A-8A23-EAC5325A5171}.Release|Win32.Build.0 = Release|Any CPU
+		{486443C8-A843-409A-8A23-EAC5325A5171}.Release|x64.ActiveCfg = Release|Any CPU
+		{486443C8-A843-409A-8A23-EAC5325A5171}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

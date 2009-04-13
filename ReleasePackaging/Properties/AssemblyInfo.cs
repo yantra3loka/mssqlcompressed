@@ -8,9 +8,9 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTitle("ReleasePackaging")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("Latitude Group Limited")]
+[assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("ReleasePackaging")]
-[assembly: AssemblyCopyright("Copyright © Latitude Group Limited 2008")]
+[assembly: AssemblyCopyright("Copyright © Clay Lenhart 2009")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
