@@ -96,7 +96,7 @@ namespace MSBackupPipe.StdPlugins.Storage
             return results.ToArray();
         }
 
-        public Stream[] GetRestoreReader(Dictionary<string, List<string>> config)
+        public Stream[] GetRestoreReader(Dictionary<string, List<string>> config, out long estimatedTotalBytes)
         {
 
 
@@ -114,17 +114,21 @@ namespace MSBackupPipe.StdPlugins.Storage
             });
 
 
+            long combinedSize = 0;
 
             Console.WriteLine(string.Format("local:"));
             foreach (FileInfo fi in fileInfos)
             {
                 Console.WriteLine(string.Format("\tpath={0}", fi.FullName));
+                combinedSize += fi.Length;
             }
+
+            estimatedTotalBytes = combinedSize;
 
             List<Stream> results = new List<Stream>(fileInfos.Count);
             foreach (FileInfo fi in fileInfos)
             {
-                results.Add(fi.Open(FileMode.Create));
+                results.Add(fi.Open(FileMode.Open));
             }
 
             return results.ToArray();
@@ -163,5 +167,7 @@ to local(path=c:\model.bak).
         }
 
         #endregion
+
+
     }
 }

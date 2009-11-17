@@ -236,6 +236,8 @@ namespace MSBackupPipe.StdPlugins.Database
             });
 
             cmd.CommandText = string.Format("BACKUP {0} @databasename {1}TO {2}{3};", databaseOrLog, filegroupClause, string.Join(",", devSql.ToArray()), withClause);
+
+
         }
 
         public string GetInstanceName(Dictionary<string, List<string>> config)

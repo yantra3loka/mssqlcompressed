@@ -1,0 +1,23 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace MSBackupPipe.StdPlugins
+{
+    public interface IStreamNotification
+    {
+        /// <summary>
+        /// The estimated size of all streams combined.  It does not need to be 100% accurate,
+        /// as this is used for UI notification only, though users would like accuracy.
+        /// </summary>
+        long EstimatedBytes { get; set; }
+
+        /// <summary>
+        /// Whenever *any* stream reads or writes data, you must call this method
+        /// so that the engine can keep track of the progress.
+        /// </summary>
+        /// <param name="additionalBytesProcessed"></param>
+        void UpdateBytesProcessed(int additionalBytesProcessed);
+
+    }
+}

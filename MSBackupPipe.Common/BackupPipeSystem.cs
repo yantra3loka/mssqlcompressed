@@ -68,15 +68,16 @@ namespace MSBackupPipe.Common
 
                         try
                         {
-
+                            IStreamNotification streamNotification =  new InternalStreamNotification(updateNotifier);
                             string instanceName = databaseComp.GetInstanceName(databaseConfig.Parameters);
                             string clusterNetworkName = databaseComp.GetClusterNetworkName(databaseConfig.Parameters);
-                            List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.Parameters, isBackup, updateNotifier);
+                            long estimatedTotalBytes;
+                            List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.Parameters, isBackup, updateNotifier, out estimatedTotalBytes);
 
-                            using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.Parameters) : storage.GetRestoreReader(storageConfig.Parameters)))
-                            using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup)))
+                            using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.Parameters) : storage.GetRestoreReader(storageConfig.Parameters, out estimatedTotalBytes)))
+                            using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup, streamNotification, estimatedTotalBytes)))
                             {
-
+                               
                                 VirtualDeviceSetConfig config = new VirtualDeviceSetConfig();
                                 config.Features = FeatureSet.PipeLike;
                                 config.DeviceCount = (uint)topOfPilelines.Count;
@@ -156,16 +157,21 @@ namespace MSBackupPipe.Common
 
         }
 
+      
 
-
-
-        private static Stream[] CreatePipeline(List<ConfigPair> pipelineConfig, IList<Stream> fileStreams, bool isBackup)
+        private static Stream[] CreatePipeline(List<ConfigPair> pipelineConfig, IList<Stream> fileStreams, bool isBackup, IStreamNotification streamNotification, long estimatedTotalBytes)
         {
+            streamNotification.EstimatedBytes = estimatedTotalBytes;
+
             List<Stream> result = new List<Stream>(fileStreams.Count);
 
             foreach (Stream fileStream in fileStreams)
             {
                 Stream topStream = fileStream;
+                if (!isBackup)
+                {
+                    topStream = new TrackingStream(topStream, streamNotification);
+                }
 
                 for (int i = pipelineConfig.Count - 1; i >= 0; i--)
                 {
@@ -177,6 +183,11 @@ namespace MSBackupPipe.Common
                         throw new ArgumentException(string.Format("Unable to create pipe component: {0}", config.TransformationType.Name));
                     }
                     topStream = isBackup ? tran.GetBackupWriter(config.Parameters, topStream) : tran.GetRestoreReader(config.Parameters, topStream);
+                }
+
+                if (isBackup)
+                {
+                    topStream = new TrackingStream(topStream, streamNotification);
                 }
                 result.Add(topStream);
             }

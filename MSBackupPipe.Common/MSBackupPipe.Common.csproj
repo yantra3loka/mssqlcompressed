@@ -48,6 +48,7 @@
     <Compile Include="ConfigPair.cs" />
     <Compile Include="DeviceThread.cs" />
     <Compile Include="DisposableList.cs" />
+    <Compile Include="InternalStreamNotification.cs" />
     <Compile Include="ParallelExecutionException.cs" />
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="IUpdateNotification.cs" />

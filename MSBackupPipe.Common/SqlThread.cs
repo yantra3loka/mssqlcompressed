@@ -40,7 +40,7 @@ namespace MSBackupPipe.Common
         /// <summary>
         /// Returns the auto-generated device names
         /// </summary>
-        public List<string> PreConnect(string clusterNetworkName, string instanceName, string deviceSetName, int numDevices, IBackupDatabase dbComponent, Dictionary<string, List<string>> dbConfig, bool isBackup, IUpdateNotification notifier)
+        public List<string> PreConnect(string clusterNetworkName, string instanceName, string deviceSetName, int numDevices, IBackupDatabase dbComponent, Dictionary<string, List<string>> dbConfig, bool isBackup, IUpdateNotification notifier, out long estimatedTotalBytes)
         {
             string serverConnectionName = clusterNetworkName == null ? "." : clusterNetworkName;
             string dataSource = string.IsNullOrEmpty(instanceName) ? serverConnectionName : string.Format(@"{0}\{1}", serverConnectionName, instanceName);
@@ -64,14 +64,107 @@ namespace MSBackupPipe.Common
             if (isBackup)
             {
                 dbComponent.ConfigureBackupCommand(dbConfig, deviceNames, mCmd);
+                estimatedTotalBytes = CalculateEstimatedDatabaseSize(mCnn, dbConfig);
             }
             else
             {
                 dbComponent.ConfigureRestoreCommand(dbConfig, deviceNames, mCmd);
+                estimatedTotalBytes = 0;
             }
 
             return deviceNames;
 
+        }
+
+        private static long CalculateEstimatedDatabaseSize(SqlConnection cnn, Dictionary<string, List<string>> dbConfig)
+        {
+
+            string backupType = "full";
+            if (dbConfig.ContainsKey("backuptype"))
+            {
+                backupType = dbConfig["backuptype"][0].ToLowerInvariant();
+            }
+            if (backupType != "full" && backupType != "differential" && backupType != "log")
+            {
+                throw new ArgumentException(string.Format("db: Unknown backuptype: {0}", backupType));
+            }
+
+            string databaseName = dbConfig["database"][0];
+            if (string.IsNullOrEmpty(databaseName))
+            {
+                throw new ArgumentException(string.Format("db: database parameter required"));
+            }
+
+
+            // full backups can use sp_spaceused() to calculate the backup size: http://msdn.microsoft.com/en-us/library/ms188776.aspx
+            // differential backup estimate is going to be very inaccurate right now
+            if (backupType == "full" || backupType == "differential")
+            {
+                using (SqlCommand cmd = new SqlCommand(string.Format("use [{0}]; exec sp_spaceused", databaseName), cnn))
+                using (SqlDataReader reader = cmd.ExecuteReader())
+                {
+                    reader.NextResult();
+                    reader.Read();
+                    string sizeStr = reader.GetString(reader.GetOrdinal("reserved"));
+                    if (sizeStr.Contains("KB"))
+                    {
+                        int pos = sizeStr.IndexOf("KB");
+                        return long.Parse(sizeStr.Substring(0, pos)) * 1024L;
+                    }
+                    // I don't know if this will occur:
+                    else if (sizeStr.Contains("MB"))
+                    {
+                        int pos = sizeStr.IndexOf("MB");
+                        return long.Parse(sizeStr.Substring(0, pos)) * 1024L * 1024L;
+                    }
+                    else
+                    {
+                        throw new InvalidCastException(string.Format("Unknown units (usually this is KB): ", sizeStr));
+                    }
+                }
+
+            }
+
+
+
+            // differiential? DIFF_MAP? http://social.msdn.microsoft.com/Forums/en-SG/sqldisasterrecovery/thread/7a5ea034-9c5a-4531-a0b3-40f67c9cef4a
+
+
+
+            // transaction log suggestions here: http://www.eggheadcafe.com/software/aspnet/32622031/how-big-will-my-backup-be.aspx
+            if (backupType == "log")
+            {
+
+                string sql = @"
+                        DECLARE  @t TABLE
+                        (
+	                        [Database Name] nvarchar(500),
+	                        [Log Size (MB)] nvarchar(100),
+	                        [Log Space Used (%)] nvarchar(100),
+	                        Status nvarchar(20)
+
+                        );
+
+                        INSERT INTO @t
+                        EXEC ('DBCC SQLPERF(logspace)')
+
+                        select CAST(CAST([Log Size (MB)] as float) * CAST([Log Space Used (%)] AS float) / 100.0 * 1024.0 * 1024.0 AS bigint) AS LogUsed 
+                        from @t
+                        WHERE [Database Name] = '{0}';
+
+                        ";
+
+                using (SqlCommand cmd = new SqlCommand(string.Format(sql, databaseName), cnn))
+                using (SqlDataReader reader = cmd.ExecuteReader())
+                {
+                    reader.Read();
+                    return reader.GetInt64(0);
+                }
+            }
+
+
+
+            throw new NotImplementedException();
         }
         public void BeginExecute()
         {

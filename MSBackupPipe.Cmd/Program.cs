@@ -108,6 +108,7 @@ namespace MSBackupPipe.Cmd
                                     CommandLineNotifier notifier = new CommandLineNotifier(true);
 
                                     BackupPipeSystem.Backup(databaseConfig, pipelineConfig, storageConfig, notifier);
+                                    Console.WriteLine("Completed Successfully.");
                                     return 0;
                                 }
                                 catch (ParallelExecutionException ee)
@@ -135,6 +136,7 @@ namespace MSBackupPipe.Cmd
                                 CommandLineNotifier notifier = new CommandLineNotifier(false);
 
                                 BackupPipeSystem.Restore(storageConfig, pipelineConfig, databaseConfig, notifier);
+                                Console.WriteLine("Completed Successfully.");
                                 return 0;
                             }
                             catch (ParallelExecutionException ee)
