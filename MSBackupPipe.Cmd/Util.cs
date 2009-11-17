@@ -9,6 +9,7 @@ namespace MSBackupPipe.Cmd
         public static void WriteError(Exception e)
         {
             Console.WriteLine(e.Message);
+            Console.WriteLine();
             Console.WriteLine(e.GetType().FullName);
             Console.WriteLine(e.StackTrace);
             if (e.InnerException != null)

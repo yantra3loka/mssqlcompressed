@@ -283,10 +283,10 @@ namespace MSBackupPipe.Cmd
 
             if (databaseArg[0] == '[' && databaseArg[databaseArg.Length - 1] == ']')
             {
-                databaseArg = string.Format("db(database={0})", databaseArg.Substring(1, databaseArg.Length - 2));
+                databaseArg = string.Format("db(database={0})", databaseArg.Substring(1, databaseArg.Length - 2).Replace(";", ";;"));
             }
 
-            databaseConfig = FindConfigPair(databaseComponents, databaseArg);
+            databaseConfig = ConfigUtil.ParseComponentConfig(databaseComponents, databaseArg);
 
 
 
@@ -298,11 +298,11 @@ namespace MSBackupPipe.Cmd
             if (storageArg.StartsWith("file://"))
             {
                 Uri uri = new Uri(storageArg);
-                storageArg = string.Format("local(path={0})", uri.LocalPath);
+                storageArg = string.Format("local(path={0})", uri.LocalPath.Replace(";", ";;"));
             }
 
 
-            storageConfig = FindConfigPair(storageComponents, storageArg);
+            storageConfig = ConfigUtil.ParseComponentConfig(storageComponents, storageArg);
 
 
 
@@ -335,7 +335,7 @@ namespace MSBackupPipe.Cmd
 
             foreach (string componentString in pipelineArgs)
             {
-                ConfigPair config = FindConfigPair(pipelineComponents, componentString);
+                ConfigPair config = ConfigUtil.ParseComponentConfig(pipelineComponents, componentString);
 
                 results.Add(config);
             }
@@ -345,46 +345,6 @@ namespace MSBackupPipe.Cmd
         }
 
 
-
-
-        private static ConfigPair FindConfigPair(Dictionary<string, Type> pipelineComponents, string componentString)
-        {
-
-            ConfigPair config = new ConfigPair();
-
-            string componentName;
-            string configString;
-
-            int pPos = componentString.IndexOf('(');
-            if (pPos < 0)
-            {
-                componentName = componentString;
-                configString = "";
-            }
-            else
-            {
-                componentName = componentString.Substring(0, pPos).Trim();
-
-                if (componentString.Substring(componentString.Length - 1, 1) != ")")
-                {
-                    throw new ArgumentException(string.Format("Invalid pipeline.  The closing parenthesis not found: {0}", componentString));
-                }
-
-                configString = componentString.Substring(pPos + 1, componentString.Length - pPos - 2);
-            }
-
-            Type foundType;
-            if (pipelineComponents.TryGetValue(componentName.ToLowerInvariant(), out foundType))
-            {
-                config.Parameters = ConfigUtil.ParseArrayConfig(configString);
-                config.TransformationType = foundType;
-            }
-            else
-            {
-                throw new ArgumentException(string.Format("Plugin not found: {0}", componentName));
-            }
-            return config;
-        }
 
 
         private static void PrintUsage()
