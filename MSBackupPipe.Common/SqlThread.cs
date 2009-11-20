@@ -79,6 +79,8 @@ namespace MSBackupPipe.Common
         private static long CalculateEstimatedDatabaseSize(SqlConnection cnn, Dictionary<string, List<string>> dbConfig)
         {
 
+            string version = GetVersion(cnn);
+
             string backupType = "full";
             if (dbConfig.ContainsKey("backuptype"))
             {
@@ -97,8 +99,7 @@ namespace MSBackupPipe.Common
 
 
             // full backups can use sp_spaceused() to calculate the backup size: http://msdn.microsoft.com/en-us/library/ms188776.aspx
-            // differential backup estimate is going to be very inaccurate right now
-            if (backupType == "full" || backupType == "differential")
+            if (backupType == "full")
             {
                 using (SqlCommand cmd = new SqlCommand(string.Format("use [{0}]; exec sp_spaceused", databaseName), cnn))
                 using (SqlDataReader reader = cmd.ExecuteReader())
@@ -128,6 +129,196 @@ namespace MSBackupPipe.Common
 
 
             // differiential? DIFF_MAP? http://social.msdn.microsoft.com/Forums/en-SG/sqldisasterrecovery/thread/7a5ea034-9c5a-4531-a0b3-40f67c9cef4a
+            // Paul's got it. :)  Code for differential estimation heavily influenced by:
+            // http://www.sqlskills.com/BLOGS/PAUL/post/New-script-How-much-of-the-database-has-changed-since-the-last-full-backup.aspx
+            if (backupType == "differential")
+            {
+                string sql2005_2008 = @"
+                    /* 2005 and 2008 */
+
+                    DECLARE @dbName nvarchar(128);
+                    SET @dbName = @dbNameParam;
+
+                    DECLARE dbfiles CURSOR FOR
+	                    SELECT file_id, size
+	                    FROM master.sys.master_files
+	                    WHERE type_desc = 'ROWS'
+		                    AND state_desc = 'ONLINE'
+		                    AND database_id = DB_ID(@dbName)
+                    	
+                    DECLARE @result TABLE
+                    (
+	                    Field varchar(100)
+                    )	
+                    	
+                    DECLARE @file_id int;
+                    DECLARE @size int;
+                    OPEN dbFiles;
+
+                    FETCH NEXT FROM dbFiles INTO @file_id, @size;
+
+                    WHILE @@FETCH_STATUS = 0
+                    BEGIN
+	                    DECLARE @extentID int;
+	                    SET @extentID = 0;
+                    	
+	                    WHILE (@extentID < @size)
+	                    BEGIN
+		                    DECLARE @pageID int;
+		                    SET @pageID = @extentID + 6;
+                    		
+		                    DECLARE @sql nvarchar(1000);
+		                    SET @sql = 'DBCC PAGE (@sqlDbName,' 
+			                    + CAST(@file_id as varchar(20)) + ','
+			                    + CAST(@pageID as varchar(20)) + ','
+			                    + '3) WITH TABLERESULTS, NO_INFOMSGS';
+                    			
+		                    DECLARE @tempDbccPage TABLE
+		                    (
+			                    ParentObject varchar(100),
+			                    [Object] varchar(100),
+			                    Field varchar(100),
+			                    Value varchar(100)
+		                    );	
+                            DELETE FROM @tempDbccPage;
+		                    INSERT INTO @tempDbccPage EXEC sp_executesql @sql, N'@sqlDbName nvarchar(128)', @sqlDbName = @dbName;
+                    		
+		                    INSERT INTO @result (Field) 
+		                    SELECT field
+		                    FROM @tempDbccPage
+		                    WHERE Value = '    CHANGED'
+			                    AND ParentObject LIKE 'DIFF_MAP%';
+                    			
+                    		
+                    		
+                    		
+		                    SET @extentID = @extentID + 511232;
+	                    END
+                    	
+	                    FETCH NEXT FROM dbFiles INTO @file_id, @size;
+
+                    END
+
+                    CLOSE dbFiles;
+                    DEALLOCATE dbFiles;
+
+                    SELECT field 
+                    from @result;
+
+                    ";
+
+                string sql2000 = @"/* 2000 */
+
+					USE [northwind];
+
+                    DECLARE @dbName nvarchar(128);
+                    SET @dbName = DB_NAME();
+                    
+                    
+
+                    DECLARE dbfiles CURSOR FOR
+	                    SELECT fileid, size
+	                    FROM sysfiles
+	                    WHERE (status & 0x2) > 0 AND (status & 0x40) = 0
+		                  
+		                    
+                    	
+                    DECLARE @result TABLE
+                    (
+	                    Field varchar(100)
+                    )	
+                    
+					CREATE TABLE #tempDbccPage 
+					(
+						ParentObject varchar(100),
+						[Object] varchar(100),
+						Field varchar(100),
+						Value varchar(100)
+					);	
+                    	
+                    DECLARE @file_id int;
+                    DECLARE @size int;
+                    OPEN dbFiles;
+
+                    FETCH NEXT FROM dbFiles INTO @file_id, @size;
+
+                    WHILE @@FETCH_STATUS = 0
+                    BEGIN
+	                    DECLARE @extentID int;
+	                    SET @extentID = 0;
+                    	
+	                    WHILE (@extentID < @size)
+	                    BEGIN
+		                    DECLARE @pageID int;
+		                    SET @pageID = @extentID + 6;
+                    		
+		                    DECLARE @sql nvarchar(1000);
+		                    SET @sql = 'DBCC PAGE (@sqlDbName,' 
+			                    + CAST(@file_id as varchar(20)) + ','
+			                    + CAST(@pageID as varchar(20)) + ','
+			                    + '3) WITH TABLERESULTS, NO_INFOMSGS';
+                    			
+		                   
+                            DELETE FROM #tempDbccPage;
+		                    INSERT INTO #tempDbccPage EXEC sp_executesql @sql, N'@sqlDbName nvarchar(128)', @sqlDbName = @dbName;
+                    		
+		                    INSERT INTO @result (Field) 
+		                    SELECT field
+		                    FROM #tempDbccPage
+		                    WHERE Value = '    CHANGED'
+			                    AND ParentObject LIKE 'DIFF_MAP%';
+                    			
+                    		
+                    		
+                    		
+		                    SET @extentID = @extentID + 511232;
+	                    END
+                    	
+	                    FETCH NEXT FROM dbFiles INTO @file_id, @size;
+
+                    END
+
+                    CLOSE dbFiles;
+                    DEALLOCATE dbFiles;
+
+                    SELECT field 
+                    from @result;";
+
+                int majorVersionNum = GetMajorVersionNumber(version);
+                if (majorVersionNum < 8)
+                {
+                    throw new InvalidOperationException(string.Format("Differential backups only work on SQL Server 2000 or greater. Version found: {0}", version));
+                }
+
+
+
+                string sql = majorVersionNum == 8 ? sql2000 : sql2005_2008;
+
+                using (SqlCommand cmd = new SqlCommand(string.Format(sql, databaseName), cnn))
+                {
+                    SqlParameter param = cmd.CreateParameter();
+                    param.SqlDbType = SqlDbType.NVarChar;
+                    param.Size = 128;
+                    param.Direction = ParameterDirection.Input;
+                    param.ParameterName = "dbNameParam";
+                    param.Value = databaseName;
+                    cmd.Parameters.Add(param);
+
+                    //dbNameParam
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        long size = 0;
+                        while (reader.Read())
+                        {
+                            string extentDescription = reader.GetString(0);
+                            size += ConvertExtentDescriptionToBytes(extentDescription);
+                        }
+
+                        return size;
+                    }
+                }
+
+            }
 
 
 
@@ -166,6 +357,113 @@ namespace MSBackupPipe.Common
 
             throw new NotImplementedException();
         }
+
+        private static long ConvertExtentDescriptionToBytes(string extentDescription)
+        {
+            // run "DBCC PAGE (<database Name>, 1, 6, 3) WITH TABLERESULTS, NO_INFOMSGS" on your favourite database to see example of 
+            // extent descriptions.
+            // Extent descriptions come in two flavours:
+            // "(1:0)        - (1:24)      "
+            // or 
+            // "(1:48)       -             "
+
+            var twoParts = extentDescription.Split('-');
+
+            if (twoParts.Length > 2 || twoParts.Length == 0)
+            {
+                throw new InvalidOperationException(string.Format("Unexpected extent description when estimating backup size: {0}", extentDescription));
+            }
+
+            if (twoParts.Length == 2 && !string.IsNullOrEmpty(twoParts[1].Trim()))
+            {
+                // We're working with the first example: "(1:0)        - (1:24)      "
+
+                try
+                {
+                    long startPage = ConvertExtentPartToPageNumber(twoParts[0]);
+                    long endPage = ConvertExtentPartToPageNumber(twoParts[1]);
+
+                    return (endPage - startPage) * (8L * 1024L);
+                }
+                catch (Exception e)
+                {
+                    throw new InvalidOperationException(string.Format("Unexpected extent description when estimating backup size: {0}", extentDescription) + "\r\n" + e.Message);
+                }
+
+            }
+            else
+            {
+                // We're working with the second example: "(1:48)       -             "
+
+                // it's always 8 pages (of 8K). 8 pages == 1 extent:
+
+                return 8L * (8L * 1024L);
+
+            }
+
+        }
+
+        private static long ConvertExtentPartToPageNumber(string extentPartDescrption)
+        {
+            // extentPartDescrption is in the format "(1:48)      ".  In this example, this method returns 48.
+
+
+            extentPartDescrption = extentPartDescrption.Trim();
+
+            if (extentPartDescrption[0] != '('
+                || extentPartDescrption[extentPartDescrption.Length - 1] != ')')
+            {
+                throw new InvalidOperationException(string.Format("Unexpected extent part description: {0}", extentPartDescrption));
+            }
+
+            extentPartDescrption = extentPartDescrption.Substring(1, extentPartDescrption.Length - 2);
+
+            try
+            {
+                return long.Parse(extentPartDescrption.Substring(extentPartDescrption.IndexOf(':') + 1));
+            }
+            catch (FormatException)
+            {
+                throw new InvalidOperationException(string.Format("Unexpected extent part description: {0}", extentPartDescrption));
+            }
+        }
+
+        private static string GetVersion(SqlConnection cnn)
+        {
+            using (SqlCommand cmd = new SqlCommand("SELECT @@version;", cnn))
+            {
+                return cmd.ExecuteScalar().ToString();
+            }
+        }
+
+        private static int GetMajorVersionNumber(string version)
+        {
+            // example string:
+            // Microsoft SQL Server 2008 (SP1) - 10.0.2531.0 (Intel X86)   Mar 29 2009 10:27:29   Copyright (c) 1988-2008 Microsoft Corporation  Developer Edition on Windows NT 5.1 <X86> (Build 2600: Service Pack 3) 
+
+
+            int dashPos = version.IndexOf('-');
+            if (dashPos < 0)
+            {
+                throw new ArgumentException(string.Format("unexpected version string: {0}", version));
+            }
+
+            int dotPos = version.IndexOf('.', dashPos);
+
+            if (dotPos < 0)
+            {
+                throw new ArgumentException(string.Format("unexpected version string: {0}", version));
+            }
+
+            int versionNum;
+            if (!int.TryParse(version.Substring(dashPos + 1, dotPos - dashPos - 1), out versionNum))
+            {
+                throw new ArgumentException(string.Format("unexpected version string: {0}", version));
+            }
+
+            return versionNum;
+        }
+
         public void BeginExecute()
         {
             mAsyncResult = mCmd.BeginExecuteNonQuery();
@@ -224,6 +522,8 @@ namespace MSBackupPipe.Common
             //base.Dispose(disposing);
 
         }
+
+
 
     }
 }
