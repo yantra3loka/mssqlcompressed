@@ -68,7 +68,7 @@ namespace MSBackupPipe.Common
 
                         try
                         {
-                            IStreamNotification streamNotification =  new InternalStreamNotification(updateNotifier);
+                            IStreamNotification streamNotification = new InternalStreamNotification(updateNotifier);
                             string instanceName = databaseComp.GetInstanceName(databaseConfig.Parameters);
                             string clusterNetworkName = databaseComp.GetClusterNetworkName(databaseConfig.Parameters);
                             long estimatedTotalBytes;
@@ -77,7 +77,7 @@ namespace MSBackupPipe.Common
                             using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.Parameters) : storage.GetRestoreReader(storageConfig.Parameters, out estimatedTotalBytes)))
                             using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup, streamNotification, estimatedTotalBytes)))
                             {
-                               
+
                                 VirtualDeviceSetConfig config = new VirtualDeviceSetConfig();
                                 config.Features = FeatureSet.PipeLike;
                                 config.DeviceCount = (uint)topOfPilelines.Count;
@@ -113,7 +113,7 @@ namespace MSBackupPipe.Common
 
                                     if (sqlE != null)
                                     {
-                                        exceptions.ThreadException = sqlE;
+                                        exceptions.Exceptions.Add(sqlE);
                                     }
 
                                     foreach (DeviceThread dThread in threads)
@@ -121,13 +121,17 @@ namespace MSBackupPipe.Common
                                         Exception devE = dThread.EndCopy();
                                         if (devE != null)
                                         {
-                                            exceptions.DeviceExceptions.Add(devE);
+                                            exceptions.Exceptions.Add(devE);
                                         }
                                     }
 
 
                                 }
                             }
+                        }
+                        catch (Exception e)
+                        {
+                            exceptions.Exceptions.Add(e);
                         }
                         finally
                         {
@@ -137,7 +141,7 @@ namespace MSBackupPipe.Common
                                 sqlFinished = true;
                                 if (sqlE != null)
                                 {
-                                    exceptions.ThreadException = sqlE;
+                                    exceptions.Exceptions.Add(sqlE);
                                 }
                             }
                         }
@@ -157,7 +161,7 @@ namespace MSBackupPipe.Common
 
         }
 
-      
+
 
         private static Stream[] CreatePipeline(List<ConfigPair> pipelineConfig, IList<Stream> fileStreams, bool isBackup, IStreamNotification streamNotification, long estimatedTotalBytes)
         {

@@ -6,24 +6,19 @@ namespace MSBackupPipe.Common
 {
     public class ParallelExecutionException : Exception 
     {
-        private Exception mThreadException;
-        private IList<Exception> mDeviceExceptions = new List<Exception>();
+        private IList<Exception> mExceptions = new List<Exception>();
 
-        public Exception ThreadException
+      
+        public IList<Exception> Exceptions
         {
-            get { return mThreadException; }
-            set { mThreadException = value; }
-        }
-        public IList<Exception> DeviceExceptions
-        {
-            get { return mDeviceExceptions; }
+            get { return mExceptions; }
         }
 
         public bool HasExceptions
         {
             get
             {
-                return mThreadException != null || mDeviceExceptions.Count > 0;
+                return mExceptions.Count > 0;
             }
         }
     }

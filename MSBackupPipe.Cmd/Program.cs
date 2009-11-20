@@ -203,14 +203,15 @@ namespace MSBackupPipe.Cmd
 
         private static void HandleExecutionExceptions(ParallelExecutionException ee, bool isBackup)
         {
-            if (ee.ThreadException != null)
-            {
-                Util.WriteError(ee.ThreadException);
-            }
 
-            foreach (Exception e in ee.DeviceExceptions)
+            int i = 1;
+            foreach (Exception e in ee.Exceptions)
             {
+                Console.WriteLine("------------------------");
+                Console.WriteLine(string.Format("Exception #{0}", i));
                 Util.WriteError(e);
+                Console.WriteLine();
+                i++;
             }
 
             Console.WriteLine();
