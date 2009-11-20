@@ -209,7 +209,7 @@ namespace MSBackupPipe.Common
 
                 string sql2000 = @"/* 2000 */
 
-					USE [northwind];
+					USE [{0}];
 
                     DECLARE @dbName nvarchar(128);
                     SET @dbName = DB_NAME();
@@ -290,7 +290,12 @@ namespace MSBackupPipe.Common
                     throw new InvalidOperationException(string.Format("Differential backups only work on SQL Server 2000 or greater. Version found: {0}", version));
                 }
 
+                if (databaseName.Contains("[") || databaseName.Contains("]"))
+                {
+                    throw new ArgumentException(string.Format("The database name cannot contain [ or ] to avoid SQL injection attacks: {0}", databaseName));
+                }
 
+                sql2000 = string.Format(sql2000, databaseName);
 
                 string sql = majorVersionNum == 8 ? sql2000 : sql2005_2008;
 
