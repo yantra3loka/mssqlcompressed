@@ -34,7 +34,7 @@ namespace MSBackupPipe.StdPlugins.Transform
         static RateTransform()
         {
             mBackupParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
-            mBackupParamSchema.Add("ratemb", new ParameterInfo() { AllowMultipleValues = false, IsRequired = true });
+            mBackupParamSchema.Add("ratemb", new ParameterInfo(false, true));
         }
 
         public Stream GetBackupWriter(Dictionary<string, List<string>> config, Stream writeToStream)

@@ -37,7 +37,7 @@ namespace MSBackupPipe.StdPlugins
         static Bzip2Transform()
         {
             mBackupParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
-            mBackupParamSchema.Add("level", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
+            mBackupParamSchema.Add("level", new ParameterInfo(false, false));
 
 
             mRestoreParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
@@ -45,7 +45,7 @@ namespace MSBackupPipe.StdPlugins
 
         #region IBackupTransformer Members
 
-        public  Stream GetBackupWriter(Dictionary<string, List<string>> config, Stream writeToStream)
+        public Stream GetBackupWriter(Dictionary<string, List<string>> config, Stream writeToStream)
         {
 
             ParameterInfo.ValidateParams(mBackupParamSchema, config);

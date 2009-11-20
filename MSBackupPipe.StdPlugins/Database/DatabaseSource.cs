@@ -34,47 +34,47 @@ namespace MSBackupPipe.StdPlugins.Database
         static DatabaseSource()
         {
             mBackupParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
-            mBackupParamSchema.Add("database", new ParameterInfo() { AllowMultipleValues = false, IsRequired = true });
-            mBackupParamSchema.Add("file", new ParameterInfo() { AllowMultipleValues = true, IsRequired = false });
-            mBackupParamSchema.Add("filegroup", new ParameterInfo() { AllowMultipleValues = true, IsRequired = false });
-            mBackupParamSchema.Add("instancename", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mBackupParamSchema.Add("clusternetworkname", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mBackupParamSchema.Add("backuptype", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mBackupParamSchema.Add("read_write_filegroups", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mBackupParamSchema.Add("copy_only", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mBackupParamSchema.Add("checksum", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mBackupParamSchema.Add("no_checksum", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mBackupParamSchema.Add("stop_on_error", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mBackupParamSchema.Add("continue_after_error", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
+            mBackupParamSchema.Add("database", new ParameterInfo(false, true));
+            mBackupParamSchema.Add("file", new ParameterInfo(true, false));
+            mBackupParamSchema.Add("filegroup", new ParameterInfo(true, false));
+            mBackupParamSchema.Add("instancename", new ParameterInfo(false, false));
+            mBackupParamSchema.Add("clusternetworkname", new ParameterInfo(false, false));
+            mBackupParamSchema.Add("backuptype", new ParameterInfo(false, false));
+            mBackupParamSchema.Add("read_write_filegroups", new ParameterInfo(false, false));
+            mBackupParamSchema.Add("copy_only", new ParameterInfo(false, false));
+            mBackupParamSchema.Add("checksum", new ParameterInfo(false, false));
+            mBackupParamSchema.Add("no_checksum", new ParameterInfo(false, false));
+            mBackupParamSchema.Add("stop_on_error", new ParameterInfo(false, false));
+            mBackupParamSchema.Add("continue_after_error", new ParameterInfo(false, false));
 
 
 
             mRestoreParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
-            mRestoreParamSchema.Add("database", new ParameterInfo() { AllowMultipleValues = false, IsRequired = true });
-            mRestoreParamSchema.Add("instancename", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("ClusterNetworkName", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("restoretype", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("CHECKSUM", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("NO_CHECKSUM", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("STOP_ON_ERROR", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("CONTINUE_AFTER_ERROR", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("KEEP_REPLICATION", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("ENABLE_BROKER", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("ERROR_BROKER_CONVERSATIONS", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("NEW_BROKER", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("RECOVERY", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("NORECOVERY", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("STANDBY", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("REPLACE", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("RESTART", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("RESTRICTED_USER", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("STOPAT", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("PARTIAL", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("READ_WRITE_FILEGROUPS", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("FILE", new ParameterInfo() { AllowMultipleValues = true, IsRequired = false });
-            mRestoreParamSchema.Add("FILEGROUP", new ParameterInfo() { AllowMultipleValues = true, IsRequired = false });
-            mRestoreParamSchema.Add("LOADHISTORY", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mRestoreParamSchema.Add("MOVE", new ParameterInfo() { AllowMultipleValues = true, IsRequired = false });
+            mRestoreParamSchema.Add("database", new ParameterInfo(false, true));
+            mRestoreParamSchema.Add("instancename", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("ClusterNetworkName", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("restoretype", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("CHECKSUM", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("NO_CHECKSUM", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("STOP_ON_ERROR", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("CONTINUE_AFTER_ERROR", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("KEEP_REPLICATION", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("ENABLE_BROKER", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("ERROR_BROKER_CONVERSATIONS", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("NEW_BROKER", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("RECOVERY", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("NORECOVERY", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("STANDBY", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("REPLACE", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("RESTART", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("RESTRICTED_USER", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("STOPAT", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("PARTIAL", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("READ_WRITE_FILEGROUPS", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("FILE", new ParameterInfo(true, false));
+            mRestoreParamSchema.Add("FILEGROUP", new ParameterInfo(true, false));
+            mRestoreParamSchema.Add("LOADHISTORY", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("MOVE", new ParameterInfo(true, false));
 
         }
 
@@ -119,7 +119,7 @@ namespace MSBackupPipe.StdPlugins.Database
                         throw new ArgumentException(string.Format("db: Unknown backuptype: {0}", config["backuptype"][0]));
                 }
             }
-          
+
             List<string> withOptions = new List<string>();
             List<string> filegroupOptions = new List<string>();
 
@@ -186,7 +186,7 @@ namespace MSBackupPipe.StdPlugins.Database
             {
                 withOptions.Add("CONTINUE_AFTER_ERROR");
             }
-            
+
 
 
             if (backupType == BackupType.Differential)
@@ -527,7 +527,7 @@ namespace MSBackupPipe.StdPlugins.Database
                 }
                 withOptions.Add(moveClause);
             }
-     
+
 
 
 

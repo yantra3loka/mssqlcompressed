@@ -34,7 +34,7 @@ namespace MSBackupPipe.StdPlugins.Storage
         static LocalStorage()
         {
             mBackupParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
-            mBackupParamSchema.Add("path", new ParameterInfo() { AllowMultipleValues = true, IsRequired = true });
+            mBackupParamSchema.Add("path", new ParameterInfo(true, true));
         }
 
         #region IBackupStorage Members

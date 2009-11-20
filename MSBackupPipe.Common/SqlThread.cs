@@ -367,7 +367,7 @@ namespace MSBackupPipe.Common
             // or 
             // "(1:48)       -             "
 
-            var twoParts = extentDescription.Split('-');
+            string[] twoParts = extentDescription.Split('-');
 
             if (twoParts.Length > 2 || twoParts.Length == 0)
             {

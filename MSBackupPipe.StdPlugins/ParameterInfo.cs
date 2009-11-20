@@ -6,8 +6,28 @@ namespace MSBackupPipe.StdPlugins
 {
     public class ParameterInfo
     {
-        public bool AllowMultipleValues { get; internal set; }
-        public bool IsRequired { get; internal set; }
+
+        private bool mAllowMultipleValues;
+        private bool mIsRequired;
+
+        public ParameterInfo()
+        {
+        }
+
+        public ParameterInfo(bool allowMultipleValues, bool isRequired)
+        {
+            mAllowMultipleValues = allowMultipleValues;
+            mIsRequired = IsRequired;
+        }
+
+        public bool AllowMultipleValues { 
+            get { return mAllowMultipleValues; }
+            internal set { mAllowMultipleValues = value; } 
+        }
+        public bool IsRequired {
+            get { return mIsRequired; }
+            internal set { mIsRequired = value; }
+        }
 
         internal static void ValidateParams(Dictionary<string, ParameterInfo> paramSchema, Dictionary<string, List<string>> config)
         {

@@ -36,12 +36,12 @@ namespace MSBackupPipe.StdPlugins
         static Zip64Transform()
         {
             mBackupParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
-            mBackupParamSchema.Add("level", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
-            mBackupParamSchema.Add("filename", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
+            mBackupParamSchema.Add("level", new ParameterInfo(false, false));
+            mBackupParamSchema.Add("filename", new ParameterInfo(false, false));
 
 
             mRestoreParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
-            mRestoreParamSchema.Add("filename", new ParameterInfo() { AllowMultipleValues = false, IsRequired = false });
+            mRestoreParamSchema.Add("filename", new ParameterInfo(false, false));
         }
 
 
