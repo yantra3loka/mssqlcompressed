@@ -12,3 +12,6 @@ MSSQL Compressed Backup pipes data from one plugin to the next.  For example, yo
 
 One other standard plugin is the "rate" plugin which limits the speed of the backup.  This can be used to ensure that the backups do not overload the system.
 
+A standard backup command would be:
+
+msbp.exe backup "db(database=model)" "zip64(level=3)" "local(path=c:\model.bak.zip)"

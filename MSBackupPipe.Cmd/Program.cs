@@ -107,8 +107,9 @@ namespace MSBackupPipe.Cmd
 
                                     CommandLineNotifier notifier = new CommandLineNotifier(true);
 
+                                    DateTime startTime = DateTime.UtcNow;
                                     BackupPipeSystem.Backup(databaseConfig, pipelineConfig, storageConfig, notifier);
-                                    Console.WriteLine("Completed Successfully.");
+                                    Console.WriteLine(string.Format("Completed Successfully. {0}", DateTime.UtcNow - startTime));
                                     return 0;
                                 }
                                 catch (ParallelExecutionException ee)
@@ -125,30 +126,32 @@ namespace MSBackupPipe.Cmd
 
                         case "restore":
                             {
-                                try {
-                                ConfigPair storageConfig;
-                                ConfigPair databaseConfig;
+                                try
+                                {
+                                    ConfigPair storageConfig;
+                                    ConfigPair databaseConfig;
 
-                                bool isBackup = false;
+                                    bool isBackup = false;
 
-                                List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
+                                    List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
 
-                                CommandLineNotifier notifier = new CommandLineNotifier(false);
+                                    CommandLineNotifier notifier = new CommandLineNotifier(false);
 
-                                BackupPipeSystem.Restore(storageConfig, pipelineConfig, databaseConfig, notifier);
-                                Console.WriteLine("Completed Successfully.");
-                                return 0;
-                            }
-                            catch (ParallelExecutionException ee)
-                            {
-                                HandleExecutionExceptions(ee, false);
-                                return -1;
-                            }
-                            catch (Exception e)
-                            {
-                                HandleException(e, false);
-                                return -1;
-                            }
+                                    DateTime startTime = DateTime.UtcNow;
+                                    BackupPipeSystem.Restore(storageConfig, pipelineConfig, databaseConfig, notifier);
+                                    Console.WriteLine(string.Format("Completed Successfully. {0}", DateTime.UtcNow - startTime));
+                                    return 0;
+                                }
+                                catch (ParallelExecutionException ee)
+                                {
+                                    HandleExecutionExceptions(ee, false);
+                                    return -1;
+                                }
+                                catch (Exception e)
+                                {
+                                    HandleException(e, false);
+                                    return -1;
+                                }
                             }
                         case "listplugins":
                             PrintPlugins(pipelineComponents, databaseComponents, storageComponents);

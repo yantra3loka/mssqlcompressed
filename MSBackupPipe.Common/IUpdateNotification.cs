@@ -21,7 +21,8 @@ namespace MSBackupPipe.Common
         /// Updates the percent complete.
         /// </summary>
         /// <param name="percentComplete">A number from 0.0 to 1.0</param>
-        void OnStatusUpdate(float percentComplete);
+        /// <returns>The *suggested* duration to be notified again</returns>
+        TimeSpan OnStatusUpdate(float percentComplete);
 
     }
 }

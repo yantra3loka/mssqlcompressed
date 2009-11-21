@@ -13,11 +13,17 @@ namespace MSBackupPipe.StdPlugins
         long EstimatedBytes { get; set; }
 
         /// <summary>
+        /// Gets the thread ID to use in the UpdateBytesProcessed method. 
+        /// </summary>
+        int GetThreadId();
+
+        /// <summary>
         /// Whenever *any* stream reads or writes data, you must call this method
         /// so that the engine can keep track of the progress.
         /// </summary>
         /// <param name="additionalBytesProcessed"></param>
-        void UpdateBytesProcessed(int additionalBytesProcessed);
+        /// <returns>The *suggested* duration to be notified again</returns>
+        TimeSpan UpdateBytesProcessed(long totalBytesProcessedByThread, int threadId);
 
     }
 }

@@ -9,7 +9,8 @@ namespace MSBackupPipe.Common
     {
         private readonly IUpdateNotification mExternalNotification;
         private long mEstimatedBytes = 1;
-        private long mBytesProcessed = 0;
+        private readonly IList<long> mBytesProcessed = new List<long>();
+        private int mLastThreadIdUsed = -1;
 
         public InternalStreamNotification(IUpdateNotification notification)
         {
@@ -34,24 +35,41 @@ namespace MSBackupPipe.Common
             }
         }
 
-        public void UpdateBytesProcessed(int additionalBytesProcessed)
+        public int GetThreadId()
         {
-            if (additionalBytesProcessed < 0)
+            lock (this)
             {
-                throw new ArgumentException(string.Format("additionalBytesProcessed must be non-negative. value={0}", additionalBytesProcessed));
+                mLastThreadIdUsed++;
+                mBytesProcessed.Add(0);
+                return mLastThreadIdUsed;
+            }
+        }
+
+        public TimeSpan UpdateBytesProcessed(long totalBytesProcessedByThread, int threadId)
+        {
+            if (totalBytesProcessedByThread < 0)
+            {
+                throw new ArgumentException(string.Format("totalBytesProcessedByThread must be non-negative. value={0}", totalBytesProcessedByThread));
             }
 
+            
             float bytesProcessed;
             float size;
             lock (this)
             {
-                mBytesProcessed += additionalBytesProcessed;
-                bytesProcessed = mBytesProcessed;
+                mBytesProcessed[threadId] = totalBytesProcessedByThread;
+                long bytesProcessedSum = 0;
+                foreach (long bytes in mBytesProcessed)
+                {
+                    bytesProcessedSum += bytes;
+                }
+                bytesProcessed = bytesProcessedSum;
                 size = mEstimatedBytes;
             }
 
-
-            mExternalNotification.OnStatusUpdate(Math.Max(0f, Math.Min(1f, bytesProcessed / size)));
+            TimeSpan suggestedWait = mExternalNotification.OnStatusUpdate(Math.Max(0f, Math.Min(1f, bytesProcessed / size)));
+            return suggestedWait;
+            //return TimeSpan.FromMilliseconds(suggestedWait.TotalMilliseconds / 2);
         }
 
 

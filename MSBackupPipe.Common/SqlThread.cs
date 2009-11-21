@@ -97,6 +97,10 @@ namespace MSBackupPipe.Common
                 throw new ArgumentException(string.Format("db: database parameter required"));
             }
 
+            if (databaseName.Contains("[") || databaseName.Contains("]"))
+            {
+                throw new ArgumentException(string.Format("The database name cannot contain [ or ] to avoid SQL injection attacks: {0}", databaseName));
+            }
 
             // full backups can use sp_spaceused() to calculate the backup size: http://msdn.microsoft.com/en-us/library/ms188776.aspx
             if (backupType == "full")
@@ -290,10 +294,7 @@ namespace MSBackupPipe.Common
                     throw new InvalidOperationException(string.Format("Differential backups only work on SQL Server 2000 or greater. Version found: {0}", version));
                 }
 
-                if (databaseName.Contains("[") || databaseName.Contains("]"))
-                {
-                    throw new ArgumentException(string.Format("The database name cannot contain [ or ] to avoid SQL injection attacks: {0}", databaseName));
-                }
+
 
                 sql2000 = string.Format(sql2000, databaseName);
 
@@ -346,15 +347,24 @@ namespace MSBackupPipe.Common
 
                         select CAST(CAST([Log Size (MB)] as float) * CAST([Log Space Used (%)] AS float) / 100.0 * 1024.0 * 1024.0 AS bigint) AS LogUsed 
                         from @t
-                        WHERE [Database Name] = '{0}';
+                        WHERE [Database Name] = @dbNameParam;
 
                         ";
 
                 using (SqlCommand cmd = new SqlCommand(string.Format(sql, databaseName), cnn))
-                using (SqlDataReader reader = cmd.ExecuteReader())
                 {
-                    reader.Read();
-                    return reader.GetInt64(0);
+                    SqlParameter param = cmd.CreateParameter();
+                    param.SqlDbType = SqlDbType.NVarChar;
+                    param.Size = 128;
+                    param.Direction = ParameterDirection.Input;
+                    param.ParameterName = "dbNameParam";
+                    param.Value = databaseName;
+                    cmd.Parameters.Add(param);
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        reader.Read();
+                        return reader.GetInt64(0);
+                    }
                 }
             }
 

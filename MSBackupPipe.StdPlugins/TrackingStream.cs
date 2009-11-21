@@ -9,11 +9,15 @@ namespace MSBackupPipe.StdPlugins
     {
         private Stream mSourceStream;
         private IStreamNotification mNotification;
+        private long mTotalBytesProcessed = 0;
+        private int mThreadId;
+        private DateTime mNextNotificationUtc = DateTime.UtcNow;
 
         public TrackingStream(Stream source, IStreamNotification notification)
         {
             mSourceStream = source;
             mNotification = notification;
+            mThreadId = notification.GetThreadId();
         }
 
         public override bool CanRead { get { return mSourceStream.CanRead; } }
@@ -52,7 +56,12 @@ namespace MSBackupPipe.StdPlugins
 
         public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
         {
-            mNotification.UpdateBytesProcessed(count);
+            mTotalBytesProcessed += count;
+            if (DateTime.UtcNow > mNextNotificationUtc)
+            {
+                TimeSpan nextWait = mNotification.UpdateBytesProcessed(mTotalBytesProcessed, mThreadId);
+                mNextNotificationUtc = DateTime.UtcNow.Add(nextWait);
+            }
             return mSourceStream.BeginWrite(buffer, offset, count, callback, state);
         }
 
@@ -76,7 +85,12 @@ namespace MSBackupPipe.StdPlugins
         public override int EndRead(IAsyncResult asyncResult)
         {
             int bytesRead = mSourceStream.EndRead(asyncResult);
-            mNotification.UpdateBytesProcessed(bytesRead);
+            mTotalBytesProcessed += bytesRead;
+            if (DateTime.UtcNow > mNextNotificationUtc)
+            {
+                TimeSpan nextWait = mNotification.UpdateBytesProcessed(mTotalBytesProcessed, mThreadId);
+                mNextNotificationUtc = DateTime.UtcNow.Add(nextWait);
+            }
             return bytesRead;
         }
 
@@ -97,7 +111,14 @@ namespace MSBackupPipe.StdPlugins
         public override int Read(byte[] buffer, int offset, int count)
         {
             int bytesRead = mSourceStream.Read(buffer, offset, count);
-            mNotification.UpdateBytesProcessed(bytesRead);
+
+            mTotalBytesProcessed += bytesRead;
+            if (DateTime.UtcNow > mNextNotificationUtc)
+            {
+                TimeSpan nextWait = mNotification.UpdateBytesProcessed(mTotalBytesProcessed, mThreadId);
+                mNextNotificationUtc = DateTime.UtcNow.Add(nextWait);
+            }
+
             return bytesRead;
         }
 
@@ -121,7 +142,12 @@ namespace MSBackupPipe.StdPlugins
         public override void Write(byte[] buffer, int offset, int count)
         {
             mSourceStream.Write(buffer, offset, count);
-            mNotification.UpdateBytesProcessed(count);
+            mTotalBytesProcessed += count;
+            if (DateTime.UtcNow > mNextNotificationUtc)
+            {
+                TimeSpan nextWait = mNotification.UpdateBytesProcessed(mTotalBytesProcessed, mThreadId);
+                mNextNotificationUtc = DateTime.UtcNow.Add(nextWait);
+            }
         }
 
 
