@@ -1,5 +1,5 @@
 ﻿/*
-	Copyright 2008 Clay Lenhart <clay@lenharts.net>
+	Copyright 2009 Clay Lenhart <clay@lenharts.net>
 
 
 	This file is part of MSSQL Compressed Backup.
