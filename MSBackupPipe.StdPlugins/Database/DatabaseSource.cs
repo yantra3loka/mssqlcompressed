@@ -46,7 +46,8 @@ namespace MSBackupPipe.StdPlugins.Database
             mBackupParamSchema.Add("no_checksum", new ParameterInfo(false, false));
             mBackupParamSchema.Add("stop_on_error", new ParameterInfo(false, false));
             mBackupParamSchema.Add("continue_after_error", new ParameterInfo(false, false));
-
+            mBackupParamSchema.Add("BufferCount", new ParameterInfo(false, false));
+            mBackupParamSchema.Add("MaxTransferSize", new ParameterInfo(false, false));
 
 
             mRestoreParamSchema = new Dictionary<string, ParameterInfo>(StringComparer.InvariantCultureIgnoreCase);
@@ -75,6 +76,8 @@ namespace MSBackupPipe.StdPlugins.Database
             mRestoreParamSchema.Add("FILEGROUP", new ParameterInfo(true, false));
             mRestoreParamSchema.Add("LOADHISTORY", new ParameterInfo(false, false));
             mRestoreParamSchema.Add("MOVE", new ParameterInfo(true, false));
+            mRestoreParamSchema.Add("BufferCount", new ParameterInfo(false, false));
+            mRestoreParamSchema.Add("MaxTransferSize", new ParameterInfo(false, false));
 
         }
 
@@ -187,7 +190,37 @@ namespace MSBackupPipe.StdPlugins.Database
                 withOptions.Add("CONTINUE_AFTER_ERROR");
             }
 
+            if (config.ContainsKey("BufferCount"))
+            {
+                List<string> valList = config["BufferCount"];
+                if (valList.Count != 1)
+                {
+                    throw new ArgumentException("BufferCount parameter must have a value.");
+                }
+                string val = valList[0];
+                int valInt;
+                if (!int.TryParse(val, out valInt))
+                {
+                    throw new ArgumentException(string.Format("BufferCount parameter was not a number: {0}", val));
+                }
+                withOptions.Add(string.Format("BufferCount={0}", valInt));
+            }
 
+            if (config.ContainsKey("MaxTransferSize"))
+            {
+                List<string> valList = config["MaxTransferSize"];
+                if (valList.Count != 1)
+                {
+                    throw new ArgumentException("MaxTransferSize parameter must have a value.");
+                }
+                string val = valList[0];
+                int valInt;
+                if (!int.TryParse(val, out valInt))
+                {
+                    throw new ArgumentException(string.Format("MaxTransferSize parameter was not a number: {0}", val));
+                }
+                withOptions.Add(string.Format("MaxTransferSize={0}", valInt));
+            }
 
             if (backupType == BackupType.Differential)
             {
@@ -529,6 +562,37 @@ namespace MSBackupPipe.StdPlugins.Database
             }
 
 
+            if (config.ContainsKey("BufferCount"))
+            {
+                List<string> valList = config["BufferCount"];
+                if (valList.Count != 1)
+                {
+                    throw new ArgumentException("BufferCount parameter must have a value.");
+                }
+                string val = valList[0];
+                int valInt;
+                if (!int.TryParse(val, out valInt))
+                {
+                    throw new ArgumentException(string.Format("BufferCount parameter was not a number: {0}", val));
+                }
+                withOptions.Add(string.Format("BufferCount={0}", valInt));
+            }
+
+            if (config.ContainsKey("MaxTransferSize"))
+            {
+                List<string> valList = config["MaxTransferSize"];
+                if (valList.Count != 1)
+                {
+                    throw new ArgumentException("MaxTransferSize parameter must have a value.");
+                }
+                string val = valList[0];
+                int valInt;
+                if (!int.TryParse(val, out valInt))
+                {
+                    throw new ArgumentException(string.Format("MaxTransferSize parameter was not a number: {0}", val));
+                }
+                withOptions.Add(string.Format("MaxTransferSize={0}", valInt));
+            }
 
 
 
