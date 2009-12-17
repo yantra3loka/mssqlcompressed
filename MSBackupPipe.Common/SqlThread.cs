@@ -188,7 +188,7 @@ namespace MSBackupPipe.Common
 		                    INSERT INTO @tempDbccPage EXEC sp_executesql @sql, N'@sqlDbName nvarchar(128)', @sqlDbName = @dbName;
                     		
 		                    INSERT INTO @result (Field) 
-		                    SELECT field
+		                    SELECT Field
 		                    FROM @tempDbccPage
 		                    WHERE Value = '    CHANGED'
 			                    AND ParentObject LIKE 'DIFF_MAP%';
@@ -206,7 +206,7 @@ namespace MSBackupPipe.Common
                     CLOSE dbFiles;
                     DEALLOCATE dbFiles;
 
-                    SELECT field 
+                    SELECT Field 
                     from @result;
 
                     ";
@@ -267,7 +267,7 @@ namespace MSBackupPipe.Common
 		                    INSERT INTO #tempDbccPage EXEC sp_executesql @sql, N'@sqlDbName nvarchar(128)', @sqlDbName = @dbName;
                     		
 		                    INSERT INTO @result (Field) 
-		                    SELECT field
+		                    SELECT Field
 		                    FROM #tempDbccPage
 		                    WHERE Value = '    CHANGED'
 			                    AND ParentObject LIKE 'DIFF_MAP%';
@@ -285,7 +285,7 @@ namespace MSBackupPipe.Common
                     CLOSE dbFiles;
                     DEALLOCATE dbFiles;
 
-                    SELECT field 
+                    SELECT Field 
                     from @result;";
 
                 int majorVersionNum = GetMajorVersionNumber(version);
