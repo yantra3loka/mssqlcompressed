@@ -143,7 +143,7 @@ namespace MSBackupPipe.Common
                     DECLARE @dbName nvarchar(128);
                     SET @dbName = @dbNameParam;
 
-                    DECLARE dbfiles CURSOR FOR
+                    DECLARE dbFiles CURSOR FOR
 	                    SELECT file_id, size
 	                    FROM master.sys.master_files
 	                    WHERE type_desc = 'ROWS'
@@ -220,7 +220,7 @@ namespace MSBackupPipe.Common
                     
                     
 
-                    DECLARE dbfiles CURSOR FOR
+                    DECLARE dbFiles CURSOR FOR
 	                    SELECT fileid, size
 	                    FROM sysfiles
 	                    WHERE (status & 0x2) > 0 AND (status & 0x40) = 0
