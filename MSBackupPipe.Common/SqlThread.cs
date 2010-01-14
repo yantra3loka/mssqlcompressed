@@ -333,7 +333,7 @@ namespace MSBackupPipe.Common
             {
 
                 string sql = @"
-                        DECLARE  @t TABLE
+                        CREATE TABLE #t
                         (
 	                        [Database Name] nvarchar(500),
 	                        [Log Size (MB)] nvarchar(100),
@@ -342,11 +342,11 @@ namespace MSBackupPipe.Common
 
                         );
 
-                        INSERT INTO @t
+                        INSERT INTO #t
                         EXEC ('DBCC SQLPERF(logspace)')
 
                         select CAST(CAST([Log Size (MB)] as float) * CAST([Log Space Used (%)] AS float) / 100.0 * 1024.0 * 1024.0 AS bigint) AS LogUsed 
-                        from @t
+                        from #t
                         WHERE [Database Name] = @dbNameParam;
 
                         ";
