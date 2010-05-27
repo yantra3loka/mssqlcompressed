@@ -72,7 +72,7 @@ namespace MSBackupPipe.Cmd
                     {
                         estEndTime = mStartTime.AddMilliseconds((utcNow - mStartTime).TotalMilliseconds / percentComplete);
                     }
-                    Console.WriteLine(string.Format("Estimated End: {0} ", estEndTime));
+                    Console.WriteLine(string.Format("Estimated End: {0} ", estEndTime.ToLocalTime()));
 
                     TimeSpan nextWait = CalculateNextNotification(utcNow - mStartTime);
                     mNextNotificationTimeUtc = utcNow.Add(nextWait);
