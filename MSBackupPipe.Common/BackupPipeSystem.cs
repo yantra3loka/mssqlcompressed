@@ -25,7 +25,7 @@ using System.Reflection;
 using System.IO;
 
 using MSBackupPipe.StdPlugins;
-using MSBackupPipe.VirtualBackupDevice;
+using VdiNet.VirtualBackupDevice;
 
 namespace MSBackupPipe.Common
 {
@@ -74,10 +74,16 @@ namespace MSBackupPipe.Common
 
                 int numDevices = storage.GetNumberOfDevices(storageConfig.Parameters);
 
+                string instanceName = databaseComp.GetInstanceName(databaseConfig.Parameters);
+                string clusterNetworkName = databaseComp.GetClusterNetworkName(databaseConfig.Parameters);
 
 
-                //NotifyWhenReady notifyWhenReady = new NotifyWhenReady(deviceName, isBackup);
-                using (VirtualDeviceSet deviceSet = new VirtualDeviceSet())
+                SqlPlatform sqlPlatform = VirtualBackupDeviceFactory.DiscoverSqlPlatform(instanceName,
+                                                                                         clusterNetworkName);
+
+
+                //NotifyWhenReady notifyWhenReady = new NotifyWhenReady(deviceName, isBackup);))
+                using (IVirtualDeviceSet deviceSet = VirtualBackupDeviceFactory.NewVirtualDeviceSet(sqlPlatform))
                 {
 
                     using (SqlThread sql = new SqlThread())
@@ -89,8 +95,6 @@ namespace MSBackupPipe.Common
                         try
                         {
                             IStreamNotification streamNotification = new InternalStreamNotification(updateNotifier);
-                            string instanceName = databaseComp.GetInstanceName(databaseConfig.Parameters);
-                            string clusterNetworkName = databaseComp.GetClusterNetworkName(databaseConfig.Parameters);
                             long estimatedTotalBytes;
                             List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.Parameters, isBackup, updateNotifier, out estimatedTotalBytes);
 
@@ -105,7 +109,7 @@ namespace MSBackupPipe.Common
                                 sql.BeginExecute();
                                 sqlStarted = true;
                                 deviceSet.GetConfiguration(TimeSpan.FromMinutes(1));
-                                List<VirtualDevice> devices = new List<VirtualDevice>();
+                                List<IVirtualDevice> devices = new List<IVirtualDevice>();
 
                                 foreach (string devName in deviceNames)
                                 {

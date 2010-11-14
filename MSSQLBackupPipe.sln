@@ -1,11 +1,9 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 9.00
-# Visual Studio 2005
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSBackupPipe.Cmd", "MSBackupPipe.Cmd\MSBackupPipe.Cmd.csproj", "{64799887-2FDF-4B40-8757-7B2E4B0F735D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MSBackupPipe.StdPlugins", "MSBackupPipe.StdPlugins\MSBackupPipe.StdPlugins.csproj", "{FD720360-0D0F-410B-990E-36DE4BEB9F23}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MSBackupPipe.VirtualBackupDevice", "MSBackupPipe.VirtualBackupDevice\MSBackupPipe.VirtualBackupDevice.vcproj", "{75864945-89FD-43ED-B0E0-18813A5BD2DD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleasePackaging", "ReleasePackaging\ReleasePackaging.csproj", "{9C8081AF-4FB8-4A85-B205-C385BCC36E01}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -38,14 +36,6 @@ Global
 		{FD720360-0D0F-410B-990E-36DE4BEB9F23}.Release|Win32.Build.0 = Release|Any CPU
 		{FD720360-0D0F-410B-990E-36DE4BEB9F23}.Release|x64.ActiveCfg = Release|Any CPU
 		{FD720360-0D0F-410B-990E-36DE4BEB9F23}.Release|x64.Build.0 = Release|Any CPU
-		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Debug|Win32.ActiveCfg = Debug|Win32
-		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Debug|Win32.Build.0 = Debug|Win32
-		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Debug|x64.ActiveCfg = Debug|x64
-		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Debug|x64.Build.0 = Debug|x64
-		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Release|Win32.ActiveCfg = Release|Win32
-		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Release|Win32.Build.0 = Release|Win32
-		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Release|x64.ActiveCfg = Release|x64
-		{75864945-89FD-43ED-B0E0-18813A5BD2DD}.Release|x64.Build.0 = Release|x64
 		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Debug|Win32.ActiveCfg = Debug|x86
 		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Debug|x64.ActiveCfg = Debug|x64
 		{9C8081AF-4FB8-4A85-B205-C385BCC36E01}.Release|Win32.ActiveCfg = Release|x86

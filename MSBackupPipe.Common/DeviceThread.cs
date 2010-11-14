@@ -25,7 +25,7 @@ using System.Threading;
 using System.IO;
 using System.Reflection;
 
-using MSBackupPipe.VirtualBackupDevice;
+using VdiNet.VirtualBackupDevice;
 using MSBackupPipe.StdPlugins;
 
 namespace MSBackupPipe.Common
@@ -35,15 +35,15 @@ namespace MSBackupPipe.Common
 
         private bool mDisposed;
         private Stream mTopOfPipeline;
-        private VirtualDevice mDevice;
-        private VirtualDeviceSet mDeviceSet;
+        private IVirtualDevice mDevice;
+        private IVirtualDeviceSet mDeviceSet;
         private bool mIsBackup;
 
 
         private Thread mThread;
         private Exception mException;
 
-        public void Initialize(bool isBackup, Stream topOfPipeline, VirtualDevice device, VirtualDeviceSet deviceSet)
+        public void Initialize(bool isBackup, Stream topOfPipeline, IVirtualDevice device, IVirtualDeviceSet deviceSet)
         {
 
             mIsBackup = isBackup;
@@ -74,7 +74,7 @@ namespace MSBackupPipe.Common
             {
 
 
-                CommandBuffer buff = new CommandBuffer();
+                ICommandBuffer buff = mDevice.CreateCommandBuffer();
 
                 try
                 {
@@ -96,7 +96,7 @@ namespace MSBackupPipe.Common
 
 
 
-        private static void ReadWriteData(VirtualDevice device, CommandBuffer buff, Stream stream, bool isBackup)
+        private static void ReadWriteData(IVirtualDevice device, ICommandBuffer buff, Stream stream, bool isBackup)
         {
 
             while (device.GetCommand(null, buff))
