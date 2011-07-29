@@ -87,8 +87,8 @@ namespace ReleasePackaging
                 }
 
 
-                string redistArch = platformName == "x86" ? "x86" : "amd64";
-                string redistPath = string.Format(@"C:\Program Files\Microsoft Visual Studio 8\VC\redist\{0}\Microsoft.VC80.CRT", redistArch);
+                string redistArch = platformName == "x86" ? "x86" : "x64";
+                string redistPath = Path.Combine(solutionDir.FullName, string.Format(@"Binaries\{0}\Microsoft.VC80.CRT", redistArch));
                 DirectoryInfo redistDir = new DirectoryInfo(redistPath);
                 string redistSubDirPath = new DirectoryInfo(zipSubDirPath).CreateSubdirectory("Microsoft.VC80.CRT").FullName;
 
