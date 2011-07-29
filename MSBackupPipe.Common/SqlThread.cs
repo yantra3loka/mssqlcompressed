@@ -309,6 +309,7 @@ namespace MSBackupPipe.Common
                     param.ParameterName = "dbNameParam";
                     param.Value = databaseName;
                     cmd.Parameters.Add(param);
+                    cmd.CommandTimeout = (int)TimeSpan.FromMinutes(10).TotalSeconds;
 
                     //dbNameParam
                     using (SqlDataReader reader = cmd.ExecuteReader())
