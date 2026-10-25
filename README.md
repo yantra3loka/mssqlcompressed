@@ -91,11 +91,36 @@ dotnet publish SqlSqueeze.Cli -c Release -o out
 Linux additionally: build `native/linux/libmsbpvdi.so` (see above) and
 place it next to the published binary or in `/opt/mssql/lib`.
 
+## Roadmap — making it a true Redgate replacement
+
+Done so far: .NET 10 port · Linux backend · `aes` + `zstd` plugins ·
+`prune` retention · `--json` scripting API · PowerShell module · SQL Agent
+templates · msdb dashboard · CI + binary releases.
+
+Still to do, in order:
+
+1. **Live validation (the gate for everything).** Real `backup` +
+   `restore` on Windows SQL 2019/2022 and Linux SQL 2022, including
+   striped, differential, and log chains. Nothing here is
+   production-claimed until this passes.
+2. **Cloud storage plugin.** S3-compatible + Azure Blob destinations.
+   Needs real cloud targets to verify against — untested backup code is
+   worse than none, so this waits for them.
+3. **Scheduled verify jobs.** `RESTORE VERIFYONLY` Agent template +
+   `Test-SqlBackup` wired into the sample schedules.
+4. **Log-shipping helpers.** Restore-chain scripts (full → diff → logs
+   with NORECOVERY/STANDBY) built on the Agent templates.
+5. **Alerting example.** Email/webhook on nonzero exit for Agent and
+   cron/Task Scheduler setups.
+
+Non-goals: a GUI (the engine + scripts + docs slot into the Ola/dbatools
+setups DBAs already run); anything that only works untested.
+
 ## Verification status
 
 - `dotnet build -c Release`: 0 warnings, 0 errors (Linux).
 - CLI `version` / `listplugins` / `help`: pass.
-  (`sqlsqueeze v1.3.0.0 (.NET 10.0.13, X64)`, all 6 plugins found.)
+  (`sqlsqueeze v1.3.0.0 (.NET 10.0.13, X64)`, all 8 plugins found.)
 - xUnit suite: **23/23 pass** — pipeline round-trips (gzip, bzip2,
   zip64 named + first, zstd, rate, local, gzip→aes chain), AES (env key,
   random salt, wrong-password/truncated/missing-key failures), prune
