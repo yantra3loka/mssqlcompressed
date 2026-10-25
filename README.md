@@ -112,6 +112,9 @@ Still to do, in order:
    with NORECOVERY/STANDBY) built on the Agent templates.
 5. **Alerting example.** Email/webhook on nonzero exit for Agent and
    cron/Task Scheduler setups.
+6. **Network resilience.** Redgate retries through dropped shares; a
+   failed write today fails the job. Retry-with-backoff on storage
+   writes (and resume-friendly chunking for large files).
 
 Non-goals: a GUI (the engine + scripts + docs slot into the Ola/dbatools
 setups DBAs already run); anything that only works untested.
