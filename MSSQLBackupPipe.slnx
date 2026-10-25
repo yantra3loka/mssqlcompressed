@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="MSBackupPipe.Cmd/MSBackupPipe.Cmd.csproj" />
-  <Project Path="MSBackupPipe.Common/MSBackupPipe.Common.csproj" />
-  <Project Path="MSBackupPipe.StdPlugins/MSBackupPipe.StdPlugins.csproj" />
-  <Project Path="MSBackupPipe.Vdi/MSBackupPipe.Vdi.csproj" />
-</Solution>
