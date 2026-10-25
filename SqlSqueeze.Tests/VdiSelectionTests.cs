@@ -35,22 +35,31 @@ namespace SqlSqueeze.Tests
         [Fact]
         public void NewVirtualDeviceSet_PicksCurrentOsBackend()
         {
-            // No SQL Server / native VDI libs on a build agent, so creating
-            // the set must fail — but with the backend-specific friendly
-            // error, proving the right backend was picked.
-            InvalidOperationException e = Assert.Throws<InvalidOperationException>(() =>
+            try
             {
                 using (VirtualBackupDeviceFactory.NewVirtualDeviceSet(SqlPlatform.X64))
                 {
                 }
-            });
-            if (OperatingSystem.IsLinux())
-            {
-                Assert.Contains("libmsbpvdi.so", e.Message);
+                // This machine HAS native VDI libs (e.g. Windows with SQL
+                // tooling): the backend constructed fine, which itself
+                // proves the right backend was picked.
             }
-            else if (OperatingSystem.IsWindows())
+            catch (InvalidOperationException e)
             {
-                Assert.Contains("CLSID_MSSQL_ClientVirtualDeviceSet", e.Message);
+                // No native VDI libs here: must fail with the
+                // backend-specific friendly error.
+                if (OperatingSystem.IsLinux())
+                {
+                    Assert.Contains("libmsbpvdi.so", e.Message);
+                }
+                else if (OperatingSystem.IsWindows())
+                {
+                    Assert.Contains("CLSID_MSSQL_ClientVirtualDeviceSet", e.Message);
+                }
+                else
+                {
+                    throw;
+                }
             }
         }
     }
