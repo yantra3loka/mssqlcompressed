@@ -29,6 +29,13 @@ arbitrarily large backups stream; the bucket is created when missing.
 `s3(endpoint=...;bucket=...;prefix=...;pattern=...;olderThanDays=...)`.
 Signatures are SigV4 with no new dependencies.
 
+`azure(endpoint=...;container=...;blob=...;account=...;accountkeyenv=...)`
+stores backups in Azure Blob (or the Azurite emulator, tested live).
+Uploads stage blocks (`blocksizeMB`, default 8) and commit a block list;
+the container is created when missing. `blob=` repeats for striped
+backups and takes `{date}` tokens. Prune mirrors `s3`. Auth is Storage
+Shared Key with no new dependencies.
+
 ## Storage write retries
 
 `local(path=...)` accepts `writeretries=N` (total attempts, default 1 =
