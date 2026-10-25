@@ -168,8 +168,10 @@ namespace MSBackupPipe.Cmd
 
                         case "version":
                             Version version = Assembly.GetEntryAssembly().GetName().Version;
-                            //ProcessorArchitecture arch = typeof(VirtualDeviceSet).Assembly.GetName().ProcessorArchitecture;
-                            Console.WriteLine(string.Format("v{0} 32+64 ({1:yyyy MMM dd})", version, (new DateTime(2000, 1, 1)).AddDays(version.Build)));
+                            Console.WriteLine(string.Format("msbp v{0} ({1}, {2})",
+                                version,
+                                System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+                                System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture));
                             return 0;
                         default:
                             Console.WriteLine(string.Format("Unknown command: {0}", args[0]));

@@ -157,6 +157,8 @@ file limitation.
             }
 
 
+            // NOTE (.NET 10 port): SharpZipLib 1.x routes Close() back into
+            // Dispose(bool), so calling base.Close() here recursed forever.
             protected override void Dispose(bool disposing)
             {
                 if (!mDisposed)
@@ -164,7 +166,6 @@ file limitation.
                     if (disposing)
                     {
                         base.Finish();
-                        base.Close();
                     }
 
                     // There are no unmanaged resources to release, but
@@ -204,15 +205,15 @@ file limitation.
             }
 
 
+            // NOTE (.NET 10 port): SharpZipLib 1.x routes Close() back into
+            // Dispose(bool), so calling base.Close() here recursed forever.
             protected override void Dispose(bool disposing)
             {
                 if (!mDisposed)
                 {
                     if (disposing)
                     {
-                        base.Close();
-                        // dispose of managed resources
-
+                        // base.Dispose closes the entry and the owned stream.
                     }
 
                     // There are no unmanaged resources to release, but
@@ -258,15 +259,15 @@ file limitation.
             }
 
 
+            // NOTE (.NET 10 port): SharpZipLib 1.x routes Close() back into
+            // Dispose(bool), so calling base.Close() here recursed forever.
             protected override void Dispose(bool disposing)
             {
                 if (!mDisposed)
                 {
                     if (disposing)
                     {
-                        base.Close();
-                        // dispose of managed resources
-
+                        // base.Dispose closes the entry and the owned stream.
                     }
 
                     // There are no unmanaged resources to release, but

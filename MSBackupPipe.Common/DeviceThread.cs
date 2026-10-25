@@ -150,6 +150,11 @@ namespace MSBackupPipe.Common
                                 stream.Flush();
                                 completionCode = CompletionCode.Success;
                                 break;
+                            case DeviceCommandType.Complete:
+                                // Sent by SQL Server 2016+ at the end of the data
+                                // stream (KB3188454). Nothing to transfer.
+                                completionCode = CompletionCode.Success;
+                                break;
 
                             default:
                                 throw new ArgumentException(string.Format("Unknown command: {0}", buff.CommandType));

@@ -69,7 +69,12 @@ namespace MSBackupPipe.StdPlugins
 
             Console.WriteLine(string.Format("gzip: level = {0}", level));
 
-            return new GZipOutputStream(writeToStream, level);
+            // NOTE (.NET 10 port): SharpZipLib 1.x changed the second
+            // GZipOutputStream constructor argument from compression level
+            // to buffer size; the level is set via SetLevel instead.
+            GZipOutputStream result = new GZipOutputStream(writeToStream);
+            result.SetLevel(level);
+            return result;
         }
 
         public string Name

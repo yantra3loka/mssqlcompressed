@@ -22,8 +22,9 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using System.Threading;
+using System.Threading.Tasks;
 
 using MSBackupPipe.StdPlugins;
 
@@ -34,7 +35,7 @@ namespace MSBackupPipe.Common
         //private Exception mException;
         private SqlConnection mCnn;
         private SqlCommand mCmd;
-        IAsyncResult mAsyncResult;
+        private Task mTask;
         private bool mDisposed;
 
         /// <summary>
@@ -44,7 +45,7 @@ namespace MSBackupPipe.Common
         {
             string serverConnectionName = clusterNetworkName == null ? "." : clusterNetworkName;
             string dataSource = string.IsNullOrEmpty(instanceName) ? serverConnectionName : string.Format(@"{0}\{1}", serverConnectionName, instanceName);
-            string connectionString = string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;Asynchronous Processing=true;", dataSource);
+            string connectionString = string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;TrustServerCertificate=true;", dataSource);
 
             notifier.OnConnecting(string.Format("Connecting: {0}", connectionString));
 
@@ -482,13 +483,13 @@ namespace MSBackupPipe.Common
 
         public void BeginExecute()
         {
-            mAsyncResult = mCmd.BeginExecuteNonQuery();
+            mTask = mCmd.ExecuteNonQueryAsync();
         }
         public Exception EndExecute()
         {
             try
             {
-                mCmd.EndExecuteNonQuery(mAsyncResult);
+                mTask.GetAwaiter().GetResult();
                 return null;
             }
             catch (Exception e)
