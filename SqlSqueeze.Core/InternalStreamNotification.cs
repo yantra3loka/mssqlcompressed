@@ -65,6 +65,22 @@ namespace SqlSqueeze.Core
             }
         }
 
+        public long TotalBytesProcessed
+        {
+            get
+            {
+                lock (this)
+                {
+                    long sum = 0;
+                    foreach (long bytes in mBytesProcessed)
+                    {
+                        sum += bytes;
+                    }
+                    return sum;
+                }
+            }
+        }
+
         public TimeSpan UpdateBytesProcessed(long totalBytesProcessedByThread, int threadId)
         {
             if (totalBytesProcessedByThread < 0)

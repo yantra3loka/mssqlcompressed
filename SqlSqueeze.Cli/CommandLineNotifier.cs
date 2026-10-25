@@ -33,11 +33,19 @@ namespace SqlSqueeze.Cli
         private DateTime mStartTime = DateTime.UtcNow;
 
         private readonly TimeSpan mMinTimeForUpdate = TimeSpan.FromSeconds(1.2);
+        private readonly bool mEmitProgress;
 
 
         public CommandLineNotifier(bool isBackup)
+            : this(isBackup, true)
+        {
+        }
+
+        /// <param name="emitProgress">false in --json mode so stdout stays parseable.</param>
+        public CommandLineNotifier(bool isBackup, bool emitProgress)
         {
             mIsBackup = isBackup;
+            mEmitProgress = emitProgress;
         }
 
         public void OnConnecting(string message)
@@ -49,7 +57,10 @@ namespace SqlSqueeze.Cli
         {
             lock (this)
             {
-                Console.WriteLine(string.Format("{0} has started", mIsBackup ? "Backup" : "Restore"));
+                if (mEmitProgress)
+                {
+                    Console.WriteLine(string.Format("{0} has started", mIsBackup ? "Backup" : "Restore"));
+                }
                 mNextNotificationTimeUtc = DateTime.UtcNow.Add(TimeSpan.FromMilliseconds(10));
                 mStartTime = DateTime.UtcNow;
             }
@@ -62,7 +73,7 @@ namespace SqlSqueeze.Cli
             lock (this)
             {
 
-                if (mNextNotificationTimeUtc < utcNow && utcNow - mStartTime > mMinTimeForUpdate)
+                if (mEmitProgress && mNextNotificationTimeUtc < utcNow && utcNow - mStartTime > mMinTimeForUpdate)
                 {
                     string percent = string.Format("{0:0.00}%", percentComplete * 100.0);
                     percent = new string(' ', 7 - percent.Length) + percent;

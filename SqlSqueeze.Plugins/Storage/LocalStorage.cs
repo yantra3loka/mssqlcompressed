@@ -25,7 +25,7 @@ using System.IO;
 
 namespace SqlSqueeze.Plugins.Storage
 {
-    public class LocalStorage : IBackupStorage
+    public class LocalStorage : IBackupStorage, IPrunableStorage
     {
         private List<bool> mDeleteOnAbort = new List<bool>();
         private List<FileInfo> mFileInfosToDeleteOnAbort = new List<FileInfo>();
@@ -66,7 +66,7 @@ namespace SqlSqueeze.Plugins.Storage
             List<string> paths = config["path"];
             List<FileInfo> fileInfos = paths.ConvertAll<FileInfo>(delegate(string path)
             {
-                return new FileInfo(path);
+                return new FileInfo(ExpandDateTokens(path));
             });
 
 
@@ -164,6 +164,81 @@ to local(path=c:\model.bak).
             }
             mFileInfosToDeleteOnAbort = null;
 
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Backup paths only: {…} is a .NET date/time format evaluated once
+        /// in local time, so Agent jobs can write
+        /// local(path=D:\B\DB_{yyyyMMdd_HHmmss}.bak.zst). Restore takes
+        /// literal names and never expands.
+        /// </summary>
+        public static string ExpandDateTokens(string path)
+        {
+            int open = path.IndexOf('{');
+            while (open >= 0)
+            {
+                int close = path.IndexOf('}', open + 1);
+                if (close < 0)
+                {
+                    break;
+                }
+                string format = path.Substring(open + 1, close - open - 1);
+                string stamp;
+                try
+                {
+                    stamp = DateTime.Now.ToString(format);
+                }
+                catch (FormatException)
+                {
+                    throw new ArgumentException(string.Format("local: bad date token '{{{0}}}' in path: {1}", format, path));
+                }
+                path = path.Substring(0, open) + stamp + path.Substring(close + 1);
+                open = path.IndexOf('{', open + stamp.Length);
+            }
+            return path;
+        }
+
+        #region IPrunableStorage Members
+
+        public PruneResult PruneOldFiles(Dictionary<string, List<string>> config)
+        {
+            if (config.Comparer != StringComparer.InvariantCultureIgnoreCase)
+            {
+                throw new ArgumentException("Programming error: prune config must use InvariantCultureIgnoreCase.");
+            }
+            if (!config.TryGetValue("dir", out List<string> dirs) || dirs.Count != 1 || string.IsNullOrWhiteSpace(dirs[0]))
+            {
+                throw new ArgumentException("local: prune needs exactly one dir=<backup folder>.");
+            }
+            if (!config.TryGetValue("olderthandays", out List<string> ages)
+                || !int.TryParse(ages[0], out int olderThanDays) || olderThanDays < 1)
+            {
+                throw new ArgumentException("local: prune needs olderThanDays=<integer >= 1>.");
+            }
+            string pattern = config.TryGetValue("pattern", out List<string> patterns) ? patterns[0] : "*";
+
+            DirectoryInfo dir = new DirectoryInfo(dirs[0]);
+            if (!dir.Exists)
+            {
+                throw new DirectoryNotFoundException(string.Format("local: prune directory does not exist: {0}", dir.FullName));
+            }
+
+            DateTime cutoffUtc = DateTime.UtcNow.Subtract(TimeSpan.FromDays(olderThanDays));
+            PruneResult result = new PruneResult();
+            foreach (FileInfo file in dir.GetFiles(pattern, SearchOption.TopDirectoryOnly))
+            {
+                if (file.LastWriteTimeUtc < cutoffUtc)
+                {
+                    long length = file.Length;
+                    file.Delete();
+                    result.DeletedFiles++;
+                    result.BytesReclaimed += length;
+                    result.DeletedPaths.Add(file.FullName);
+                }
+            }
+            return result;
         }
 
         #endregion

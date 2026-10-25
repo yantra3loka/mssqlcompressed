@@ -87,11 +87,64 @@ namespace SqlSqueeze.Tests
         }
 
         [Fact]
+        public void Zstd_RoundTrip()
+        {
+            byte[] data = SampleData();
+            Assert.Equal(data, RoundTrip(new ZstdTransform(), Cfg(("level", "5")), Empty(), data));
+        }
+
+        [Fact]
+        public void Zstd_LevelOutOfRange_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                new ZstdTransform().GetBackupWriter(Cfg(("level", "99")), new MemoryStream()));
+        }
+
+        [Fact]
+        public void GzipThenAes_Chain_RoundTrip()
+        {
+            // Same nesting as `sqlsqueeze backup [db] gzip aes(...) local`:
+            // data -> gzip -> aes -> file. Compress always precedes encrypt.
+            byte[] data = SampleData();
+            var aesCfg = Cfg(("password", "chain"), ("iterations", "1000"));
+            byte[] blob;
+            using (MemoryStream ms = new MemoryStream())
+            {
+                using (Stream aes = new AesTransform().GetBackupWriter(aesCfg, ms))
+                using (Stream gzip = new GzipTransform().GetBackupWriter(Empty(), aes))
+                {
+                    gzip.Write(data, 0, data.Length);
+                }
+                blob = ms.ToArray();
+            }
+            using (MemoryStream ms = new MemoryStream(blob, writable: false))
+            using (Stream aes = new AesTransform().GetRestoreReader(aesCfg, ms))
+            using (Stream gzip = new GzipTransform().GetRestoreReader(Empty(), aes))
+            using (MemoryStream outms = new MemoryStream())
+            {
+                gzip.CopyTo(outms);
+                Assert.Equal(data, outms.ToArray());
+            }
+        }
+
+        [Fact]
         public void Rate_PassesThrough()
         {
             byte[] data = SampleData();
             Assert.Equal(data, RoundTrip(new RateTransform(),
                 Cfg(("ratemb", "500")), Cfg(("ratemb", "500")), data));
+        }
+
+        [Fact]
+        public void DateTokens_ExpandOnBackupOnly()
+        {
+            string expanded = SqlSqueeze.Plugins.Storage.LocalStorage.ExpandDateTokens(
+                "/tmp/x_{yyyyMMdd}.bak");
+            Assert.Equal("/tmp/x_" + DateTime.Now.ToString("yyyyMMdd") + ".bak", expanded);
+            Assert.Equal("/tmp/plain.bak",
+                SqlSqueeze.Plugins.Storage.LocalStorage.ExpandDateTokens("/tmp/plain.bak"));
+            Assert.Throws<ArgumentException>(() =>
+                SqlSqueeze.Plugins.Storage.LocalStorage.ExpandDateTokens("/tmp/x_{abc\\}.bak"));
         }
 
         [Fact]

@@ -11,13 +11,24 @@ Runs on **Windows and Linux** (`net10.0`, AnyCPU; SQL Server is 64-bit only
 on both).
 
 ```text
-sqlsqueeze backup [model] gzip(level=5) file:///backups/model.bak.gz
-sqlsqueeze restore file:///backups/model.bak.gz gzip [model]
+sqlsqueeze backup [model] zstd file:///backups/model.bak.zst
+sqlsqueeze backup [mydb] gzip aes(passwordEnv=BACKUP_KEY) file:///backups/mydb.bak.gz.aes
+sqlsqueeze restore file:///backups/model.bak.zst zstd [model_restored]
+sqlsqueeze prune "local(dir=/backups;pattern=*.zst;olderThanDays=30)" --json
 ```
 
-Plugins: `db` (database) · `gzip` `bzip2` `zip64` `rate` (pipeline) ·
-`local` (file storage). Run `sqlsqueeze help`, `sqlsqueeze listplugins`,
-`sqlsqueeze helpplugin <name>` for details.
+Plugins: `db` (database) · `gzip` `bzip2` `zip64` `zstd` `aes` `rate`
+(pipeline) · `local` (file storage). Run `sqlsqueeze help`,
+`sqlsqueeze listplugins`, `sqlsqueeze helpplugin <name>` for details.
+
+## Scripting
+
+- `--json` on backup/restore/prune: one result object on stdout, exit
+  `0`/`-1`. See [tools/README.md](tools/README.md) for the contract.
+- [PowerShell module](tools/SqlSqueeze.psm1): `Backup-SqlDatabase`,
+  `Restore-SqlDatabase`, `Remove-SqlBackup`, `Test-SqlBackup`.
+- [SQL Agent templates](tools/sql-agent/) (CmdExec, Windows + Linux) and
+  the [msdb dashboard view](tools/msdb/BackupHistory.sql).
 
 ## Provenance
 
@@ -85,8 +96,10 @@ place it next to the published binary or in `/opt/mssql/lib`.
 - `dotnet build -c Release`: 0 warnings, 0 errors (Linux).
 - CLI `version` / `listplugins` / `help`: pass.
   (`sqlsqueeze v1.3.0.0 (.NET 10.0.13, X64)`, all 6 plugins found.)
-- 1 MiB round-trips (byte-identical): gzip, bzip2, zip64 (named + first
-  entry), rate limiter, local storage: **PASS**.
+- xUnit suite: **23/23 pass** — pipeline round-trips (gzip, bzip2,
+  zip64 named + first, zstd, rate, local, gzip→aes chain), AES (env key,
+  random salt, wrong-password/truncated/missing-key failures), prune
+  (age/pattern/defaults/validation), date tokens, backend selection.
 - Backend selection on Linux without SQL Server: factory picks the Linux
   backend and fails with the friendly missing-`libmsbpvdi.so` error:
   **PASS**. Struct/enum values asserted: **PASS**.

@@ -46,22 +46,24 @@ namespace SqlSqueeze.Core
 
 
 
-        public static void Backup(ConfigPair databaseConfig, List<ConfigPair> pipelineConfig, ConfigPair storageConfig, IUpdateNotification updateNotifier)
+        public static BackupStats Backup(ConfigPair databaseConfig, List<ConfigPair> pipelineConfig, ConfigPair storageConfig, IUpdateNotification updateNotifier)
         {
-            BackupOrRestore(true, storageConfig, databaseConfig, pipelineConfig, updateNotifier);
+            return BackupOrRestore(true, storageConfig, databaseConfig, pipelineConfig, updateNotifier);
         }
 
 
-        public static void Restore(ConfigPair storageConfig, List<ConfigPair> pipelineConfig, ConfigPair databaseConfig, IUpdateNotification updateNotifier)
+        public static BackupStats Restore(ConfigPair storageConfig, List<ConfigPair> pipelineConfig, ConfigPair databaseConfig, IUpdateNotification updateNotifier)
         {
-            BackupOrRestore(false, storageConfig, databaseConfig, pipelineConfig, updateNotifier);
+            return BackupOrRestore(false, storageConfig, databaseConfig, pipelineConfig, updateNotifier);
         }
 
 
 
 
-        private static void BackupOrRestore(bool isBackup, ConfigPair storageConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig, IUpdateNotification updateNotifier)
+        private static BackupStats BackupOrRestore(bool isBackup, ConfigPair storageConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig, IUpdateNotification updateNotifier)
         {
+            System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
+            BackupStats stats = new BackupStats();
 
             string deviceSetName = Guid.NewGuid().ToString();
 
@@ -94,7 +96,7 @@ namespace SqlSqueeze.Core
 
                         try
                         {
-                            IStreamNotification streamNotification = new InternalStreamNotification(updateNotifier);
+                            InternalStreamNotification streamNotification = new InternalStreamNotification(updateNotifier);
                             long estimatedTotalBytes;
                             List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.Parameters, isBackup, updateNotifier, out estimatedTotalBytes);
 
@@ -149,6 +151,9 @@ namespace SqlSqueeze.Core
                                         }
                                     }
 
+                                    stats.BytesProcessed = streamNotification.TotalBytesProcessed;
+                                    stats.EstimatedBytes = estimatedTotalBytes;
+
 
                                 }
                             }
@@ -174,6 +179,8 @@ namespace SqlSqueeze.Core
                         {
                             throw exceptions;
                         }
+
+                        stats.Elapsed = elapsed.Elapsed;
                     }
                 }
             }
@@ -182,6 +189,8 @@ namespace SqlSqueeze.Core
                 storage.CleanupOnAbort();
                 throw;
             }
+
+            return stats;
 
         }
 

@@ -41,6 +41,18 @@ namespace SqlSqueeze.Cli
             Debugger.Launch();
 #endif
 
+            // Scripting switch: a trailing --json makes backup/restore print
+            // one JSON result object instead of human text. Exit codes stay
+            // 0 on success, -1 on any failure.
+            bool json = false;
+            if (args.Length > 0 && args[args.Length - 1].Equals("--json", StringComparison.OrdinalIgnoreCase))
+            {
+                json = true;
+                string[] stripped = new string[args.Length - 1];
+                Array.Copy(args, stripped, args.Length - 1);
+                args = stripped;
+            }
+
             try
             {
 
@@ -74,6 +86,9 @@ namespace SqlSqueeze.Cli
                                     case "restore":
                                         PrintRestoreUsage();
                                         break;
+                                    case "prune":
+                                        PrintPruneUsage();
+                                        break;
                                     case "listplugins":
                                         Console.WriteLine("Lists the plugins available.  Go on, try it.");
                                         break;
@@ -104,21 +119,20 @@ namespace SqlSqueeze.Cli
 
                                     List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
 
-                                    CommandLineNotifier notifier = new CommandLineNotifier(true);
+                                    CommandLineNotifier notifier = new CommandLineNotifier(true, !json);
 
-                                    DateTime startTime = DateTime.UtcNow;
-                                    BackupPipeSystem.Backup(databaseConfig, pipelineConfig, storageConfig, notifier);
-                                    Console.WriteLine(string.Format("Completed Successfully. {0}", DateTime.UtcNow - startTime));
+                                    BackupStats stats = BackupPipeSystem.Backup(databaseConfig, pipelineConfig, storageConfig, notifier);
+                                    PrintSuccess("backup", stats, json);
                                     return 0;
                                 }
                                 catch (ParallelExecutionException ee)
                                 {
-                                    HandleExecutionExceptions(ee, true);
+                                    HandleExecutionExceptions(ee, true, json);
                                     return -1;
                                 }
                                 catch (Exception e)
                                 {
-                                    HandleException(e, true);
+                                    HandleException(e, true, json);
                                     return -1;
                                 }
                             }
@@ -134,21 +148,68 @@ namespace SqlSqueeze.Cli
 
                                     List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
 
-                                    CommandLineNotifier notifier = new CommandLineNotifier(false);
+                                    CommandLineNotifier notifier = new CommandLineNotifier(false, !json);
 
-                                    DateTime startTime = DateTime.UtcNow;
-                                    BackupPipeSystem.Restore(storageConfig, pipelineConfig, databaseConfig, notifier);
-                                    Console.WriteLine(string.Format("Completed Successfully. {0}", DateTime.UtcNow - startTime));
+                                    BackupStats stats = BackupPipeSystem.Restore(storageConfig, pipelineConfig, databaseConfig, notifier);
+                                    PrintSuccess("restore", stats, json);
                                     return 0;
                                 }
                                 catch (ParallelExecutionException ee)
                                 {
-                                    HandleExecutionExceptions(ee, false);
+                                    HandleExecutionExceptions(ee, false, json);
                                     return -1;
                                 }
                                 catch (Exception e)
                                 {
-                                    HandleException(e, false);
+                                    HandleException(e, false, json);
+                                    return -1;
+                                }
+                            }
+                        case "prune":
+                            {
+                                try
+                                {
+                                    if (args.Length != 2)
+                                    {
+                                        throw new ArgumentException("Usage: sqlsqueeze prune \"local(dir=<folder>;pattern=<glob>;olderThanDays=<n>)\" [--json]");
+                                    }
+                                    ConfigPair storageConfig = ConfigUtil.ParseComponentConfig(storageComponents, args[1]);
+                                    object plugin = Activator.CreateInstance(storageConfig.TransformationType);
+                                    if (!(plugin is IPrunableStorage prunable))
+                                    {
+                                        throw new ArgumentException(string.Format("The {0} storage plugin does not support prune.", storageConfig.TransformationType.Name));
+                                    }
+                                    PruneResult pruned = prunable.PruneOldFiles(storageConfig.Parameters);
+                                    if (json)
+                                    {
+                                        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                                        {
+                                            status = "ok",
+                                            operation = "prune",
+                                            deletedFiles = pruned.DeletedFiles,
+                                            bytesReclaimed = pruned.BytesReclaimed,
+                                        }));
+                                    }
+                                    else
+                                    {
+                                        foreach (string deleted in pruned.DeletedPaths)
+                                        {
+                                            Console.WriteLine(string.Format("deleted: {0}", deleted));
+                                        }
+                                        Console.WriteLine(string.Format("Pruned {0} file(s), reclaimed {1} bytes.", pruned.DeletedFiles, pruned.BytesReclaimed));
+                                    }
+                                    return 0;
+                                }
+                                catch (Exception e)
+                                {
+                                    if (json)
+                                    {
+                                        PrintJsonError("prune", InnermostMessage(e));
+                                    }
+                                    else
+                                    {
+                                        HandleException(e, true, false);
+                                    }
                                     return -1;
                                 }
                             }
@@ -184,6 +245,12 @@ namespace SqlSqueeze.Cli
             catch (Exception e)
             {
 
+                if (json)
+                {
+                    PrintJsonError(args.Length > 0 ? args[0].ToLowerInvariant() : "cli", InnermostMessage(e));
+                    return -1;
+                }
+
                 Util.WriteError(e);
 
                 Exception ie = e;
@@ -205,8 +272,55 @@ namespace SqlSqueeze.Cli
         }
 
 
-        private static void HandleExecutionExceptions(ParallelExecutionException ee, bool isBackup)
+        private static void PrintSuccess(string operation, BackupStats stats, bool json)
         {
+            if (json)
+            {
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    status = "ok",
+                    operation = operation,
+                    bytesProcessed = stats.BytesProcessed,
+                    estimatedBytes = stats.EstimatedBytes,
+                    elapsedSeconds = stats.Elapsed.TotalSeconds,
+                    mbPerSecond = stats.MegaBytesPerSecond,
+                }));
+            }
+            else
+            {
+                Console.WriteLine(string.Format("Completed Successfully. {0}", stats.Elapsed));
+                Console.WriteLine(string.Format("{0} bytes processed ({1:0.00} MB/s).",
+                    stats.BytesProcessed, stats.MegaBytesPerSecond));
+            }
+        }
+
+        private static void PrintJsonError(string operation, string message)
+        {
+            Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                status = "error",
+                operation = operation,
+                message = message,
+            }));
+        }
+
+        private static string InnermostMessage(Exception e)
+        {
+            while (e.InnerException != null)
+            {
+                e = e.InnerException;
+            }
+            return e.Message;
+        }
+
+        private static void HandleExecutionExceptions(ParallelExecutionException ee, bool isBackup, bool json)
+        {
+            string operation = isBackup ? "backup" : "restore";
+            if (json)
+            {
+                PrintJsonError(operation, InnermostMessage(ee.Exceptions.Count > 0 ? ee.Exceptions[0] : ee));
+                return;
+            }
 
             int i = 1;
             foreach (Exception e in ee.Exceptions)
@@ -219,15 +333,22 @@ namespace SqlSqueeze.Cli
             }
 
             Console.WriteLine();
-            Console.WriteLine(string.Format("The {0} failed.", isBackup ? "backup" : "restore"));
+            Console.WriteLine(string.Format("The {0} failed.", operation));
 
 
             PrintUsage();
         }
 
 
-        private static void HandleException(Exception e, bool isBackup)
+        private static void HandleException(Exception e, bool isBackup, bool json)
         {
+            string operation = isBackup ? "backup" : "restore";
+            if (json)
+            {
+                PrintJsonError(operation, InnermostMessage(e));
+                return;
+            }
+
             Util.WriteError(e);
 
             Exception ie = e;
@@ -241,7 +362,7 @@ namespace SqlSqueeze.Cli
             }
 
             Console.WriteLine();
-            Console.WriteLine(string.Format("The {0} failed.", isBackup ? "backup" : "restore"));
+            Console.WriteLine(string.Format("The {0} failed.", operation));
 
             PrintUsage();
         }
@@ -358,6 +479,7 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze help");
             Console.WriteLine("\tsqlsqueeze backup");
             Console.WriteLine("\tsqlsqueeze restore");
+            Console.WriteLine("\tsqlsqueeze prune");
             Console.WriteLine("\tsqlsqueeze listplugins");
             Console.WriteLine("\tsqlsqueeze helpplugin");
             Console.WriteLine("\tsqlsqueeze version");
@@ -374,6 +496,7 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze backup [model] gzip file:///c:\\model.bak.gz");
             Console.WriteLine("");
             Console.WriteLine("For more information on the different pipline options, type sqlsqueeze listplugins");
+            Console.WriteLine("Append --json for one machine-readable result line (exit code still 0/-1).");
         }
 
         private static void PrintRestoreUsage()
@@ -385,8 +508,18 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze restore file:///c:\\model.bak.gz gzip [model]");
             Console.WriteLine("");
             Console.WriteLine("For more information on the different pipline options, type sqlsqueeze listplugins");
+            Console.WriteLine("Append --json for one machine-readable result line (exit code still 0/-1).");
         }
 
+
+        private static void PrintPruneUsage()
+        {
+            Console.WriteLine("To delete aged backup files (retention):");
+            Console.WriteLine("\tsqlsqueeze prune \"local(dir=c:\\backups;pattern=*.bak.gz;olderThanDays=30)\"");
+            Console.WriteLine("Deletes files in dir matching pattern (default *) whose last-write");
+            Console.WriteLine("time is older than olderThanDays (minimum 1). Subfolders are skipped.");
+            Console.WriteLine("Append --json for one machine-readable result line.");
+        }
 
         private static void PrintPlugins(Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> storageComponents)
         {
