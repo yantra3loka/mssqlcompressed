@@ -2,5 +2,6 @@
   <Project Path="SqlSqueeze.Cli/SqlSqueeze.Cli.csproj" />
   <Project Path="SqlSqueeze.Core/SqlSqueeze.Core.csproj" />
   <Project Path="SqlSqueeze.Plugins/SqlSqueeze.Plugins.csproj" />
+  <Project Path="SqlSqueeze.Tests/SqlSqueeze.Tests.csproj" />
   <Project Path="SqlSqueeze.Vdi/SqlSqueeze.Vdi.csproj" />
 </Solution>

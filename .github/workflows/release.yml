@@ -1,0 +1,77 @@
+# Cuts a GitHub Release with ready-to-run binaries on every v* tag.
+#   git tag v1.3.0 && git push origin v1.3.0
+# No trimming: the plugin loader scans assemblies via reflection.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            archive: sqlsqueeze-win-x64.zip
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive: sqlsqueeze-linux-x64.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Version from tag
+        shell: bash
+        run: echo "BUILD_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Publish self-contained
+        run: dotnet publish SqlSqueeze.Cli -c Release -r ${{ matrix.rid }} --self-contained -o out /p:Version=${{ env.BUILD_VERSION }}
+
+      # Linux users build the VDI shim on the SQL box; ship its source
+      # alongside the binary so `cd native/linux && make` just works.
+      - name: Bundle shim source (Linux only)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: cp -r native out/
+
+      - name: Pack (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: cd out && 7z a ../${{ matrix.archive }} .
+
+      - name: Pack (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: cd out && tar czf ../${{ matrix.archive }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release with binaries
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ls dist
+          gh release create "${GITHUB_REF_NAME}" --title "SqlSqueeze ${GITHUB_REF_NAME}" \
+            --generate-notes dist/*

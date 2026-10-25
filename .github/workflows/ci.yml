@@ -1,0 +1,34 @@
+# Builds + tests every push to master and every PR.
+# Release binaries are built by release.yml (on v* tags).
+name: CI
+
+on:
+  push:
+    branches: [master]
+    tags-ignore: ['v*']
+  pull_request:
+
+jobs:
+  build-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build
+        run: dotnet build SqlSqueeze.slnx -c Release
+
+      - name: Test
+        run: dotnet test SqlSqueeze.slnx -c Release --no-build
+
+      # The Linux shim needs libsqlvdi.so to LINK, but a syntax-only
+      # compile catches C++ regressions without SQL Server installed.
+      - name: Shim syntax check (Linux only)
+        if: runner.os == 'Linux'
+        run: g++ -fsyntax-only -I native/linux native/linux/vdishim.cpp
