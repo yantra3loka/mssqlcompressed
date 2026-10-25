@@ -11,6 +11,7 @@
 
 #include "vdi.h"
 #include <cstddef>
+#include <new>
 
 extern "C" {
 
