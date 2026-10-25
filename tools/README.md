@@ -19,6 +19,16 @@ Test-SqlBackup -Path /backups/app.bak.zst -ServerInstance .  # +VERIFYONLY when 
 Every call runs the CLI with `--json` and returns the result object;
 failures throw with the server-side message.
 
+## Object storage (`s3`)
+
+`s3(endpoint=...;bucket=...;key=...;region=...;accesskey=...;secretkeyenv=...)`
+stores backups in any S3-compatible service (AWS S3, MinIO, moto-tested).
+Uploads always use multipart (buffered `partsizeMB`, default 8), so
+arbitrarily large backups stream; the bucket is created when missing.
+`key=` repeats for striped backups and takes `{date}` tokens. Prune with
+`s3(endpoint=...;bucket=...;prefix=...;pattern=...;olderThanDays=...)`.
+Signatures are SigV4 with no new dependencies.
+
 ## Storage write retries
 
 `local(path=...)` accepts `writeretries=N` (total attempts, default 1 =
