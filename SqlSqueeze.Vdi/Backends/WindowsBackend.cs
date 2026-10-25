@@ -137,7 +137,18 @@ namespace VdiNet.VirtualBackupDevice
         {
             EnsureNotDisposed();
             VDConfig native = config.ToNative();
-            int hr = _native.CreateEx(instanceName ?? string.Empty, deviceSetName, ref native);
+            // VDI wants the bare instance name: strip a LocalDB
+            // "(localdb)\..." prefix, which is a client connection
+            // concept, not a VDI instance name. LocalDB instances are not
+            // registered as services, so sqlvdi cannot resolve their names:
+            // bind the default (empty) VDI endpoint instead.
+            string vdiInstance = instanceName ?? string.Empty;
+            const string localDbPrefix = "(localdb)\\";
+            if (vdiInstance.StartsWith(localDbPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                vdiInstance = string.Empty;
+            }
+            int hr = _native.CreateEx(vdiInstance, deviceSetName, ref native);
             Check(hr, "VDS::CreateEx");
         }
 

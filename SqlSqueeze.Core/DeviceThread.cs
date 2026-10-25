@@ -42,6 +42,17 @@ namespace SqlSqueeze.Core
 
         private Thread mThread;
         private Exception mException;
+        private long mBytesTransferredTotal;
+
+        /// <summary>
+        /// Bytes moved through VDI by this thread (uncompressed side).
+        /// Read after EndCopy; counted per completed command, so it is
+        /// exact regardless of how pipeline streams buffer internally.
+        /// </summary>
+        public long TotalBytesTransferred
+        {
+            get { return mBytesTransferredTotal; }
+        }
 
         public void Initialize(bool isBackup, Stream topOfPipeline, IVirtualDevice device, IVirtualDeviceSet deviceSet)
         {
@@ -96,7 +107,7 @@ namespace SqlSqueeze.Core
 
 
 
-        private static void ReadWriteData(IVirtualDevice device, ICommandBuffer buff, Stream stream, bool isBackup)
+        private void ReadWriteData(IVirtualDevice device, ICommandBuffer buff, Stream stream, bool isBackup)
         {
 
             while (device.GetCommand(null, buff))
@@ -164,6 +175,8 @@ namespace SqlSqueeze.Core
                                 completionCode = CompletionCode.NotSupported;
                                 break;
                         }
+
+                        mBytesTransferredTotal += bytesTransferred;
                     }
                     finally
                     {

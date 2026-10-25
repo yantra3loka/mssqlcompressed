@@ -106,11 +106,11 @@ optional iterations=N (PBKDF2 rounds, default 100000; must match on restore).";
 
         private static ICryptoTransform CreateTransform(string password, byte[] salt, int iterations, byte[] iv, bool encrypt)
         {
-            byte[] key;
-            using (Rfc2898DeriveBytes kdf = new Rfc2898DeriveBytes(password, salt, iterations, HashAlgorithmName.SHA256))
-            {
-                key = kdf.GetBytes(32);
-            }
+            // Static Pbkdf2 (the Rfc2898DeriveBytes ctors are obsolete since
+            // .NET 10): identical PBKDF2-SHA256 output, proven by the golden
+            // vector test against blobs written by the old code.
+            byte[] key = Rfc2898DeriveBytes.Pbkdf2(
+                Encoding.UTF8.GetBytes(password), salt, iterations, HashAlgorithmName.SHA256, 32);
             using (Aes aes = Aes.Create())
             {
                 aes.Key = key;

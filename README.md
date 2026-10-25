@@ -124,12 +124,22 @@ setups DBAs already run); anything that only works untested.
 - `dotnet build -c Release`: 0 warnings, 0 errors (Linux).
 - CLI `version` / `listplugins` / `help`: pass.
   (`sqlsqueeze v1.3.0.0 (.NET 10.0.13, X64)`, all 8 plugins found.)
-- xUnit suite: **23/23 pass** — pipeline round-trips (gzip, bzip2,
+- xUnit suite: **26/26 pass** — pipeline round-trips (gzip, bzip2,
   zip64 named + first, zstd, rate, local, gzip→aes chain), AES (env key,
-  random salt, wrong-password/truncated/missing-key failures), prune
-  (age/pattern/defaults/validation), date tokens, backend selection.
+  random salt, wrong-password/truncated/missing-key failures, KDF golden
+  vector), prune (age/pattern/defaults/validation), date tokens, backend
+  selection, restore byte counting.
 - Backend selection on Linux without SQL Server: factory picks the Linux
   backend and fails with the friendly missing-`libmsbpvdi.so` error:
   **PASS**. Struct/enum values asserted: **PASS**.
-- Live `backup`/`restore` against SQL Server (either OS): **not yet run**.
-  If you run one, please report back.
+- Live against SQL Server 2025 Express (Windows VM, 2026-10-25): **PASS**.
+  50k-row database: zstd full (13.9 MB → 1.0 MB, 0.4 s) and gzip+aes
+  full restored with identical row counts + checksums; differential,
+  log, and full→diff / full→log NORECOVERY chains all restore
+  byte-correct (51k rows incl. chained diff). msdb history records every
+  backup as `device_type 7` (virtual device). Restore order is the same
+  as backup order (each layer inverts itself); VERIFYONLY/HEADERONLY
+  reject compressed files by design, like Redgate `.sqb` files.
+- Live against SQL Server on Linux: **not yet run** — the Windows and
+  Linux VDI paths share everything above the backend, but the shim
+  (`native/linux`) still needs its first real backup.

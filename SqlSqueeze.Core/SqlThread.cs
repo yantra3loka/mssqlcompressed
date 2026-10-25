@@ -45,6 +45,13 @@ namespace SqlSqueeze.Core
         {
             string serverConnectionName = clusterNetworkName == null ? "." : clusterNetworkName;
             string dataSource = string.IsNullOrEmpty(instanceName) ? serverConnectionName : string.Format(@"{0}\{1}", serverConnectionName, instanceName);
+            if (!string.IsNullOrEmpty(instanceName)
+                && instanceName.StartsWith("(localdb)", StringComparison.OrdinalIgnoreCase))
+            {
+                // LocalDB has no server part: the value is already a full
+                // data source, e.g. instancename=(localdb)\MSSQLLocalDB.
+                dataSource = instanceName;
+            }
             string connectionString = string.Format("Data Source={0};Initial Catalog=master;Integrated Security=SSPI;TrustServerCertificate=true;", dataSource);
 
             notifier.OnConnecting(string.Format("Connecting: {0}", connectionString));
@@ -364,9 +371,32 @@ namespace SqlSqueeze.Core
                     cmd.Parameters.Add(param);
                     using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        reader.Read();
-                        return reader.GetInt64(0);
+                        if (reader.Read() && !reader.IsDBNull(0))
+                        {
+                            return reader.GetInt64(0);
+                        }
                     }
+                }
+
+                // DBCC SQLPERF(logspace) does not list every database on all
+                // versions/editions: fall back to the total log file size.
+                using (SqlCommand cmd = new SqlCommand(
+                    "SELECT ISNULL(SUM(CAST(size AS bigint)), 0) * 8192 FROM sys.master_files WHERE database_id = DB_ID(@dbNameParam) AND type = 1",
+                    cnn))
+                {
+                    SqlParameter param = cmd.CreateParameter();
+                    param.SqlDbType = SqlDbType.NVarChar;
+                    param.Size = 128;
+                    param.Direction = ParameterDirection.Input;
+                    param.ParameterName = "dbNameParam";
+                    param.Value = databaseName;
+                    cmd.Parameters.Add(param);
+                    object value = cmd.ExecuteScalar();
+                    if (value != null && value != DBNull.Value)
+                    {
+                        return Convert.ToInt64(value);
+                    }
+                    return 0;
                 }
             }
 

@@ -151,7 +151,12 @@ namespace SqlSqueeze.Core
                                         }
                                     }
 
-                                    stats.BytesProcessed = streamNotification.TotalBytesProcessed;
+                                    long transferred = 0;
+                                    foreach (DeviceThread done in threads)
+                                    {
+                                        transferred += done.TotalBytesTransferred;
+                                    }
+                                    stats.BytesProcessed = transferred;
                                     stats.EstimatedBytes = estimatedTotalBytes;
 
 

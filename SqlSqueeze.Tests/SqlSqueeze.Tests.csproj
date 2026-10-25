@@ -15,8 +15,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Data\aes-golden.bin" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SqlSqueeze.Plugins\SqlSqueeze.Plugins.csproj" />
     <ProjectReference Include="..\SqlSqueeze.Vdi\SqlSqueeze.Vdi.csproj" />
+    <ProjectReference Include="..\SqlSqueeze.Core\SqlSqueeze.Core.csproj" />
   </ItemGroup>
 
 </Project>

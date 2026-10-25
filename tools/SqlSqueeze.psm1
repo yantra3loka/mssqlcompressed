@@ -103,7 +103,8 @@ function Restore-SqlDatabase {
     $dbOpts = @{ database = $Database }
     if ($ServerInstance) { $dbOpts['instancename'] = $ServerInstance }
     if ($Replace) { $dbOpts['replace'] = $null }
-    # Restore order is the mirror of backup: file, transforms, db.
+    # Restore uses the SAME transform order as backup: each layer inverts
+    # itself (verified live: mirrored order fails with a gzip magic error).
     $args = @('restore', (Join-PluginConfig 'local' @{ path = $Path })) + $Transform +
         @((Join-PluginConfig 'db' $dbOpts))
     $result = Invoke-SqlSqueeze -Arguments $args -ExePath $ExePath
@@ -140,6 +141,10 @@ function Test-SqlBackup {
     .SYNOPSIS
         Sanity-check a backup file: exists, non-empty, and (when sqlcmd +
         server details are available) RESTORE VERIFYONLY.
+    .NOTES
+        VERIFYONLY only works on native-format files. Compressed files
+        (.zst/.gz/.aes) fail it by design — same as Redgate .sqb files.
+        Verify those by restoring to a scratch database and checksumming.
     #>
     [CmdletBinding()]
     param(

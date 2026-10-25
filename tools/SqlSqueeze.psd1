@@ -1,5 +1,5 @@
 @{
-    ModuleVersion = '1.3.0'
+    ModuleVersion = '1.4.0'
     GUID = 'cad80d59-dc89-4db6-b81a-3907f1a1e687'
     Author = 'Krishnan Venkiteswaran'
     Description = 'PowerShell wrapper for SqlSqueeze (open-source SQL Server compressed backup).'

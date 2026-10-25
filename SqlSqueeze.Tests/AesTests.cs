@@ -86,6 +86,25 @@ namespace SqlSqueeze.Tests
         }
 
         [Fact]
+        public void GoldenVector_Decrypts()
+        {
+            // Blob encrypted with the original Rfc2898DeriveBytes ctor code.
+            // Guards the KDF switch: old backups must keep decrypting.
+            var asm = typeof(AesTests).Assembly;
+            using (Stream res = asm.GetManifestResourceStream("SqlSqueeze.Tests.Data.aes-golden.bin"))
+            {
+                Assert.NotNull(res);
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    res.CopyTo(ms);
+                    byte[] plain = Decrypt(ms.ToArray(), Cfg(("password", "golden-key-2026"), ("iterations", "1000")));
+                    Assert.Equal("SqlSqueeze AES golden file. 0123456789 ABCDEFGHIJ",
+                        System.Text.Encoding.UTF8.GetString(plain));
+                }
+            }
+        }
+
+        [Fact]
         public void WrongPassword_Throws()
         {
             byte[] data = SampleData();

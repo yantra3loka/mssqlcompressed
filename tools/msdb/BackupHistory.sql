@@ -12,9 +12,11 @@ SELECT
     DATEDIFF(SECOND, s.backup_start_date, s.backup_finish_date)
                                                            AS [DurationSec],
     CAST(s.backup_size / 1048576.0 AS decimal(18, 1))      AS [SizeMB],
-    CAST(s.compressed_backup_size / 1048576.0 AS decimal(18, 1))
-                                                           AS [OnDiskMB],
-    CASE WHEN s.backup_size > 0
+    -- NOTE: for VDI backups (sqlsqueeze, Redgate, …) the compression
+    -- happens outside SQL Server, so msdb always records ratio 100%.
+    -- Measure real ratios from the backup files on disk.
+    CASE WHEN f.device_type = 7 THEN NULL
+         WHEN s.backup_size > 0
          THEN CAST(100.0 * s.compressed_backup_size / s.backup_size
                    AS decimal(5, 1)) END                   AS [PctOfOriginal],
     CASE f.device_type
