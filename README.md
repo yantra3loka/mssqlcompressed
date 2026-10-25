@@ -1,6 +1,6 @@
 # SqlSqueeze (formerly MSSQL Compressed Backup)
 
-[![CI](https://github.com/yantra3loka/mssqlcompressed/actions/workflows/ci.yml/badge.svg)](https://github.com/yantra3loka/mssqlcompressed/actions/workflows/ci.yml)
+[![CI](https://github.com/yantra3loka/sqlsqueeze/actions/workflows/ci.yml/badge.svg)](https://github.com/yantra3loka/sqlsqueeze/actions/workflows/ci.yml)
 
 Open-source SQL Server backup compression via the Virtual Backup Device
 Interface (VDI) — the same technique Redgate SQL Backup Pro uses, which is
@@ -64,7 +64,7 @@ Upstream is abandoned — this repo keeps it building and running on modern
 ## Download
 
 Grab the latest `sqlsqueeze-win-x64.zip` / `sqlsqueeze-linux-x64.tar.gz`
-from [Releases](https://github.com/yantra3loka/mssqlcompressed/releases) —
+from [Releases](https://github.com/yantra3loka/sqlsqueeze/releases) —
 self-contained, no .NET install needed. (Linux: also build
 `native/linux/libmsbpvdi.so` on the SQL box, see below.)
 
