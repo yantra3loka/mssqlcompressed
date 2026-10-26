@@ -127,6 +127,12 @@ queries for "latest per database" and "missing a fresh full".
   manifests that were skipped while scanning. Nothing to restore (no full
   backup of that database in the folder) is a top-level
   `{status:"error", message}`.
+- `backup --json` and `backup-all --json` also print `copies` (one entry per
+  `--copy-to`: `destination` (no secrets), `status`, `attempts`, `bytesCopied`,
+  `bytesSkipped`, `problems`) and `copyProblems` (backup-all: per result). A
+  failed copy does not make the backup's own `status` an error, but the exit
+  code is `-1`, so check `copyProblems` to tell a failed copy from a failed
+  backup.
 - `sqlsqueeze copy <source> <destination> --json` prints `{status,
   operation:"copy", attempts, bytesCopied, bytesSkipped, elapsedSeconds,
   warnings[], problems[]}` (`bytesSkipped`: bytes an S3 or Azure destination

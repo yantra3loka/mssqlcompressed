@@ -196,8 +196,31 @@ locally and then copying is the way to get Redgate-style network resilience.
   never left as a truncated object. Running it again is always safe.
 - Both storages need the same number of files (stripes). The copied
   manifest names the destination's files.
-- Not built yet: a `--copy-to` option on `backup` itself (copy is a second
-  command).
+- Both storages need the same number of files (stripes), and a copy to the
+  same place as the backup is refused.
+
+### Copying as part of the backup: `--copy-to`
+
+`sqlsqueeze backup ... --copy-to <storage>` (repeatable) and `backup-all ...
+--copy-to <storage>` copy each backup, with its manifest, to other places
+straight after taking it: a second disk or share, S3, Azure.
+
+```text
+sqlsqueeze backup [app] zstd "aes(passwordEnv=KEY)" "local(path=/backups/app_{yyyyMMdd_HHmmss}.bak)" \
+    --copy-to "local(path=/mnt/nas/app.bak)" --copy-to "s3(endpoint=...;bucket=b;key=app.bak;accesskey=...;secretkeyenv=SK)"
+```
+
+- The copy finds the file by the name the backup **actually** used (date
+  tokens already expanded), not by expanding them again a moment later.
+- It retries through outages like `copy` (`--copy-max-hours`,
+  `--copy-backoff-seconds`) and resumes S3 and Azure uploads.
+- **The backup stands on its own.** If a copy fails, the backup (already
+  written and verified-able) is kept, every other destination is still tried,
+  the failure is reported, and the exit code is `-1` so cron and the cron
+  webhook notice. Retry just the copy with `sqlsqueeze copy`.
+- With `backup-all`, put `{database}` (and `{backuptype}`) in each
+  `--copy-to` path, as in the primary one; selecting several databases into a
+  copy-to path without `{database}` is refused before anything is backed up.
 
 ## Scripting
 
@@ -284,7 +307,8 @@ backup manifests · `test-restore` (scratch restore + `DBCC CHECKDB`) ·
 `unpack` (back to a plain native `.bak`) and `--from-manifest` (no retyping the
 pipeline), for local, S3 and Azure storage · `restore --kill-connections` and
 orphaned-user warnings · `copy` (retries through outages for up to 24 hours,
-resumes unfinished S3 and Azure uploads, checked against the manifest) · `restore-chain` (latest full + diff + logs, point in
+resumes unfinished S3 and Azure uploads, checked against the manifest) and
+`--copy-to` on `backup` and `backup-all` · `restore-chain` (latest full + diff + logs, point in
 time, standby) · `backup-all` (many databases, full/diff/log planning).
 
 Still to do, in order:
@@ -292,8 +316,7 @@ Still to do, in order:
 1. **Broader live validation.** Windows is verified on SQL Server 2025
    Express and Linux on SQL Server 2022. Still to cover: 2016–2025 on
    both OSes, in CI.
-2. **`--copy-to`, real-cloud testing.** `backup` has no built-in copy-to
-   (copy is a second command). S3 and Azure were tested against moto and
+2. **Real-cloud testing.** S3 and Azure were tested against moto and
    Azurite only, not real cloud accounts.
 3. **Chains from cloud storage and by LSN.** `restore-chain` reads local
    folders only (S3 and Azure have no listing yet), and picks by time taken
@@ -403,6 +426,16 @@ setups DBAs already run); anything that only works untested.
   marks them aborted, writes after an abort are discarded, and S3 deletes the
   multipart upload. Any object that failed backups left behind in cloud
   storage should be deleted; a good backup always has a manifest beside it.
+- `--copy-to`, live against SQL Server 2022 on Linux, moto and Azurite
+  (2026-10-26): **PASS**. One `backup` command with a date-stamped primary
+  name and three `--copy-to` destinations (a folder, S3, Azure) took the
+  backup and left three copies that each verified from their own manifest.
+  `backup-all` with `{database}` in the primary and copy-to paths copied each
+  database to its own place in S3, and a restore test ran straight from one
+  of those S3 copies. A destination that could not be reached gave up after
+  four attempts: the backup was intact and verified, the other copy was still
+  made, and the exit code was non-zero. Several databases into one copy-to
+  path were refused before anything was backed up.
 - Resuming a copy, live against moto and Azurite (2026-10-26): **PASS**. A
   ~56 MB backup copied through a proxy that cut the connection once after
   about 28 MB. To S3 (5 MB parts): attempt 1 died mid-upload, attempt 2
