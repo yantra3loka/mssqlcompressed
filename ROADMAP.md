@@ -17,7 +17,7 @@ to "I trust this with production", and then to "I would not go back".
 - Building, testing and releasing cost the project nothing: GitHub's free tiers
   for a public repository (Actions, Releases, Pages, the container registry),
   SQL Server's free editions (Developer for testing, Express), and free
-  emulators and servers (Azurite for Azure Blob, MinIO and moto for S3).
+  emulators and servers (Azurite for Azure Blob; SeaweedFS, RustFS and moto for S3).
 - Where something genuinely cannot be free (a real AWS or Azure account), it is
   **opt-in and run by whoever has an account**, through a published conformance
   script, with the results recorded in the README. The project never depends on
@@ -72,6 +72,10 @@ is no lock-in.
   resume; fixes for unrestorable `zstd`+`aes` backups and truncated cloud
   objects from failed backups.
 - **v1.6.0:** `--copy-to` on `backup` and `backup-all`.
+- **v1.6.1:** SQL Server 2025 on Linux (the shim links libuuid); live CI on Linux
+  and Windows.
+- **v1.6.2:** S3 and Azure fixes found by the cloud conformance run (S3 request
+  signing, Azure blob names); the conformance script and its CI.
 
 ## Next: make it trustworthy (and free to keep trustworthy)
 
@@ -100,12 +104,18 @@ change, for free".
    `backup-all`) on every change or nightly, across SQL Server 2019, 2022 and
    2025 where the packages exist. This one item closes the "never run on
    Windows, never run across versions" gap at no cost, and keeps it closed.
-2. **Cloud conformance without paying.** *Done when:* the S3 tests run in CI
-   against a real S3 server implementation (MinIO) as well as moto, Azure against
-   Azurite, and there is an opt-in script (`tools/cloud-conformance`) that anyone
-   with a real AWS, Azure or other account can run against their own bucket to
-   record a pass in the README, including a resumed copy. No project account
-   needed.
+2. **Cloud conformance without paying.** *Mostly done (2026-10-26):*
+   `tools/cloud-conformance/run.sh` (25 scenarios, no SQL Server needed) runs in CI
+   against SeaweedFS and RustFS (signature-checking S3 servers), moto and Azurite,
+   on every change and weekly, and anyone can run it against their own AWS, Azure
+   or S3-compatible account. Its first run found that S3 requests were being
+   signed wrongly (rejected by every server that checks signatures, so very likely
+   by real AWS) and that Azure mangled some blob names; both fixed in v1.6.2.
+   MinIO, named in the first draft, no longer publishes its official container
+   image, so it is not used. *Still to do:* a pass recorded against a real AWS S3
+   bucket and a real Azure account by someone who has one (the script exists; the
+   README says how), and more S3 servers if they are easy to run for free (Garage,
+   Ceph).
 3. **Authenticated encryption, then public-key encryption.** `aes` is
    AES-256-CBC with no integrity check, so a modified ciphertext is not detected
    by the cipher itself (`verify` catches it via the manifest; a plain `restore`
@@ -239,5 +249,10 @@ Nothing here costs money.
   Server writes a backup, not something to fix).
 - SQL Server 2025 on Linux could not take any backup with v1.6.0 and earlier (the
   shim did not link libuuid, which 2025's `libsqlvdi.so` needs); fixed on master.
+- v1.6.1 and earlier: S3 requests were not signed the way AWS requires (found by
+  the conformance run), so S3 backups were very likely rejected by real AWS S3 and
+  other strict services; Azure blob names with `%`, `#` or similar were mangled.
+  Fixed in v1.6.2. moto and the unit-test fakes never checked signatures, which is
+  why nothing noticed.
 - v1.4.0 and earlier can write unrestorable `zstd`+`aes` backups and leave
   truncated cloud objects; fixed in v1.5.0.

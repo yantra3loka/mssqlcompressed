@@ -222,6 +222,30 @@ sqlsqueeze backup [app] zstd "aes(passwordEnv=KEY)" "local(path=/backups/app_{yy
   `--copy-to` path, as in the primary one; selecting several databases into a
   copy-to path without `{database}` is refused before anything is backed up.
 
+## Checking your own cloud account
+
+`tools/cloud-conformance/run.sh` runs the storage scenarios against any
+S3-compatible service (AWS, Backblaze B2, Cloudflare R2, Wasabi, MinIO, Ceph...)
+or Azure Blob account and prints a pass/fail line for each. It needs no SQL
+Server, only an existing bucket or container and credentials that can list,
+read, write and delete in it. It writes under its own random prefix, moves
+about three times `SQS_BIG_MB` (default 64) of data, and removes everything it
+created:
+
+```bash
+SQS_APP=/path/to/sqlsqueeze SQS_S3_ENDPOINT=https://s3.us-east-1.amazonaws.com \
+  SQS_S3_BUCKET=my-test-bucket SQS_S3_REGION=us-east-1 \
+  SQS_S3_ACCESSKEY=... SQS_S3_SECRET=... tools/cloud-conformance/run.sh s3
+
+SQS_APP=/path/to/sqlsqueeze SQS_AZ_ENDPOINT=https://myaccount.blob.core.windows.net \
+  SQS_AZ_ACCOUNT=myaccount SQS_AZ_CONTAINER=my-test-container \
+  SQS_AZ_KEY=... tools/cloud-conformance/run.sh azure
+```
+
+If you run it against a real account, a pass (or a failure, with the output) is
+exactly what the project is missing: please open an issue with the provider and
+the last line of output.
+
 ## Scripting
 
 - `--json` on backup/restore/prune: one result object on stdout, exit
@@ -359,7 +383,25 @@ setups DBAs already run); anything that only works untested.
   with identical checksums. The first run exposed a heap corruption at
   the end of a working backup: the shim deleted the device object, which
   the device set owns. Fixed in `05e7aee`.
-- S3 and Azure storage, live against emulators (2026-10-26): **PASS**.
+- S3 and Azure, cloud conformance in CI (2026-10-26): **PASS** against
+  SeaweedFS 4.50 and RustFS 1.0.4 (two independent S3 servers that check
+  signatures), moto 5.2.4, and Azurite 3.37.0, 25 scenarios each
+  (`tools/cloud-conformance/run.sh`): multipart uploads, a part-aligned and a
+  one-byte object, names with spaces, non-ASCII, `+ & % #`, overwrite,
+  integrity checked in place, bit-identical download, a copy killed half way and
+  resumed, a wrong secret failing cleanly, and prune. **This corrects the
+  entry below.** moto and the unit-test fakes do not check S3 signatures, so
+  until this run the `s3` plugin had never been shown to work against a server
+  that does: its requests were missing the `x-amz-content-sha256` header AWS
+  requires, and a query string containing a slash was encoded twice, so
+  v1.6.1 and earlier were very likely rejected by real AWS S3 and by other
+  strict S3 services. Azure blob names containing `%`, `#` or similar were
+  stored under a different name or failed. All fixed in v1.6.2; the signer now
+  reproduces the signature AWS prints in its own documentation example. Still
+  not run against a real AWS or Azure account: anyone with one can run the
+  script against their own bucket (see below).
+- S3 and Azure storage, live against emulators (2026-10-26): **PASS**
+  (superseded by the entry above for S3).
   `s3` against moto: 6 MB multipart round trip byte-correct, prune
   verified. `azure` against Azurite: 3 MB in 3 blocks, SHA-256 identical
   after download. Not yet run against real S3 or Azure. Live runs found
