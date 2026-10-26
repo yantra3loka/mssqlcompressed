@@ -16,6 +16,7 @@ sqlsqueeze backup [mydb] gzip aes(passwordEnv=BACKUP_KEY) file:///backups/mydb.b
 sqlsqueeze restore file:///backups/model.bak.zst zstd [model_restored]
 sqlsqueeze prune "local(dir=/backups;pattern=*.zst;olderThanDays=30)" --json
 sqlsqueeze verify file:///backups/model.bak.zst zstd
+sqlsqueeze test-restore file:///backups/model.bak.zst zstd --db "db(user=sa;passwordEnv=SQL_PW)"
 sqlsqueeze backup-all USER_DATABASES,-scratch* zstd "local(path=/backups/{database}/{database}_{backuptype}_{yyyyMMdd_HHmmss}.bak.zst)" --db "db(user=sa;passwordEnv=SQL_PW)"
 ```
 
@@ -74,6 +75,29 @@ on a backup taken with `checksum` (SQL Server refuses it otherwise).
 Without a manifest (`s3` and `azure` do not write one yet) the stream check
 can only confirm the file decodes, and says so, because corruption can
 decode cleanly (a flipped byte in a zstd file did).
+
+## Test restores
+
+`verify` shows the file is the file that was written, and `verify --sql`
+shows SQL Server accepts it as a backup. Neither shows the database inside
+is healthy: a backup of a corrupt database is a perfect, valid backup of
+corruption. `sqlsqueeze test-restore <storage> [pipeline...] --db "db(...)"`
+does: it restores a full backup into a scratch database
+(`sqs_testrestore_<db>_<time>`, in the server's default data and log
+folders), runs `DBCC CHECKDB` on it, and drops it again. Run it from cron on
+the SQL Server machine (`tools/cron/sqlsqueeze-cron.sh test-restore ...`
+alerts like any other command).
+
+- It needs the manifest next to the backup, for the database name and the
+  file list recorded when the backup was taken, so only backups from this
+  version on can be test-restored, and only full backups.
+- The original database is never touched. It refuses to start if a database
+  with the scratch name exists, and only ever drops the one it created; if
+  the drop fails that is reported as a failure so the leftover gets
+  cleaned up. `--keep` leaves the scratch database for you to inspect.
+- `--physical-only` runs the faster `DBCC CHECKDB ... PHYSICAL_ONLY`.
+- It needs free disk space for a copy of the database, and runs as the
+  `mssql` user on Linux like `backup` does.
 
 ## Scripting
 
@@ -155,31 +179,28 @@ Windows and Linux · `s3` + `azure` storage plugins · native-format
 `RESTORE VERIFYONLY` Agent job · restore-chain helper (full → diff → logs,
 NORECOVERY/STANDBY) · failure alerting (Agent operator + cron webhook) ·
 write retry with backoff (`writeretries=`) on `local`, `s3` and `azure` ·
-`verify` + backup manifests · `backup-all` (many databases, full/diff/log
-planning).
+`verify` (hashes, and `--sql` for SQL Server's own `RESTORE VERIFYONLY`) +
+backup manifests · `test-restore` (scratch restore + `DBCC CHECKDB`) ·
+`backup-all` (many databases, full/diff/log planning).
 
 Still to do, in order:
 
-1. **Test restores.** `verify` proves the stored bytes are the bytes that
-   were written, and `verify --sql` has SQL Server accept them. Still to
-   do: a scheduled test-restore into a scratch database with
-   `DBCC CHECKDB`, the only way to know a backup restores to a healthy
-   database. The existing Agent verify job only covers native-format
-   files.
-2. **Self-describing backup files, the rest.** The manifest exists for
+1. **Self-describing backup files, the rest.** The manifest exists for
    `local` storage. Still to do: manifests for `s3`/`azure`, `restore`
    reading the pipeline from the manifest instead of needing it retyped,
    and a way to convert back to a native `.bak`.
-3. **Broader live validation.** Windows is verified on SQL Server 2025
+2. **Broader live validation.** Windows is verified on SQL Server 2025
    Express and Linux on SQL Server 2022. Still to cover: 2016–2025 on
    both OSes, in CI.
-4. **Resumable transfers, copy queue, real-cloud testing.** Writes retry
+3. **Resumable transfers, copy queue, real-cloud testing.** Writes retry
    with backoff within a run, but nothing resumes an interrupted upload
    in a later run and there is no copy-to/log-copy queue (Redgate keeps
    retrying for up to 24 hours). S3 and Azure were tested against moto
    and Azurite only, not real cloud accounts.
-5. **Restore ergonomics.** Kill connections first, restore the latest
+4. **Restore ergonomics.** Kill connections first, restore the latest
    chain automatically, report orphaned users, restore from cloud.
+5. **Test restores of differential and log chains.** `test-restore` takes
+   full backups only.
 
 Non-goals: a GUI (the engine + scripts + docs slot into the Ola/dbatools
 setups DBAs already run); anything that only works untested.
@@ -251,6 +272,17 @@ setups DBAs already run); anything that only works untested.
   with SQL Server's own message; it rejected a gzip file that decodes
   cleanly but is not a backup ("media family incorrectly formed"); and it
   was skipped for a file that had already failed the hash checks.
+- `test-restore`, live against SQL Server 2022 on Linux (2026-10-26):
+  **PASS**. A healthy database with an extra data file was backed up with
+  `zstd` + `aes`, restored into a scratch database, checked and dropped
+  (the manifest had recorded all three files). A second database with a
+  page deliberately corrupted (`DBCC WRITEPAGE`, scratch database only)
+  was backed up the same way: `verify` and `verify --sql` both passed it,
+  as they should (it is a faithful backup of the corruption), and
+  `test-restore` failed it with `DBCC CHECKDB`'s page-level errors, then
+  dropped the scratch database. No scratch databases or files were left.
+  It refuses a backup with no manifest and a log backup, with a clear
+  message.
 - **The VDI library prints an abort notice after the CLI's JSON line.**
   When SQL Server aborts a VDI operation, `libsqlvdi` writes a line like
   `Host_…_SQLVDIMemoryName_0: CVD::GetCommand: Abort bit is set` to stdout

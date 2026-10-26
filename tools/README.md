@@ -110,6 +110,15 @@ queries for "latest per database" and "missing a fresh full".
   `status` is `error` and the exit code `-1` if any database failed;
   skips do not count. Selecting nothing, or several databases into one
   path, is a top-level `{status:"error", message}` before any backup runs.
+- `sqlsqueeze test-restore <storage> [pipeline...] --db "db(...)" --json`
+  prints `{status, operation:"test-restore", scratchDatabase,
+  restoredBytes, dropped, elapsedSeconds, problems[]}`. `status` is `ok`
+  only when the backup restored, `DBCC CHECKDB` was clean and the scratch
+  database was dropped (or `--keep` was given); otherwise `error` with
+  `problems` and exit `-1`. A backup it cannot test (no manifest, not a
+  full backup, no file list) is a top-level `{status:"error", message}`.
+  Cron: `sqlsqueeze-cron.sh test-restore file:///backups/app.bak.zst zstd --db "db(user=sa;passwordEnv=SQL_PW)"`.
 - `local` storage writes `<file>.manifest.json` beside each backup (database,
-  type, pipeline with secrets redacted, sizes and SHA-256) and `prune`
-  removes it with the backup.
+  type, pipeline with secrets redacted, sizes and SHA-256, and for
+  backups of a database its files, so `test-restore` can place them) and
+  `prune` removes it with the backup.
