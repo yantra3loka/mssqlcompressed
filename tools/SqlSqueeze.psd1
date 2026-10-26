@@ -5,7 +5,7 @@
     Description = 'PowerShell wrapper for SqlSqueeze (open-source SQL Server compressed backup).'
     PowerShellVersion = '7.0'
     RootModule = 'SqlSqueeze.psm1'
-    FunctionsToExport = @('Backup-SqlDatabase', 'Restore-SqlDatabase', 'Remove-SqlBackup', 'Test-SqlBackup')
+    FunctionsToExport = @('Backup-SqlDatabase', 'Restore-SqlDatabase', 'Remove-SqlBackup', 'Test-SqlBackup', 'Test-SqlSqueezeBackup', 'Restore-SqlChain')
     CmdletsToExport = @()
     VariablesToExport = @()
     AliasesToExport = @()

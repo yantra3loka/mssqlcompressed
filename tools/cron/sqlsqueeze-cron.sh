@@ -66,12 +66,13 @@ json_escape() {
 }
 
 # Pull a human message out of the CLI's one-line JSON result, when a
-# JSON tool is available. Falls back to the raw line.
+# JSON tool is available. Falls back to the raw line. Errors carry a
+# "message"; a failed verify carries a "problems" list instead.
 extract_message() {
     local line=$1 message
     if command -v jq >/dev/null 2>&1; then
         message=$(printf '%s' "$line" \
-            | jq -r 'if type == "object" then (.message // .status // empty) else empty end' \
+            | jq -r 'if type == "object" then (((.message // ((.problems // []) | join("; "))) | select(. != "")) // .status // empty) else empty end' \
             2>/dev/null)
         if [ -n "$message" ]; then
             printf '%s' "$message"

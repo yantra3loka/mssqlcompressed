@@ -14,6 +14,7 @@ Remove-SqlBackup -Directory /backups -Pattern '*.bak.zst' -OlderThanDays 30
 Restore-SqlChain -Directory /backups -Database app -TargetDatabase app_copy
 Restore-SqlChain -Directory /backups -Database app -TargetDatabase app_copy -StandbyFile /backups/undo.sby -WhatIf
 Test-SqlBackup -Path /backups/app.bak.zst -ServerInstance .  # +VERIFYONLY when sqlcmd exists
+Test-SqlSqueezeBackup -Path /backups/app.bak.zst             # hashes vs manifest, no SQL Server
 ```
 
 Every call runs the CLI with `--json` and returns the result object;
@@ -87,3 +88,13 @@ queries for "latest per database" and "missing a fresh full".
   line on stdout: `{status, operation, bytesProcessed?, estimatedBytes?,
   elapsedSeconds?, mbPerSecond?}` or `{status:"error", operation, message}`.
   Progress chatter is suppressed in `--json` mode; take the last line.
+- `sqlsqueeze verify <storage> [pipeline...] --json` prints `{status,
+  operation:"verify", manifestFound, storedBytes, rawBytes, problems[]}`.
+  `status` is `ok` only when `problems` is empty (exit `0`); otherwise
+  `status:"error"`, `problems` lists what differs, exit `-1`. With
+  `manifestFound:false` an `ok` only means the file decoded. The cron
+  wrapper reports `problems` as the webhook message, so it can run
+  `verify` from cron: `sqlsqueeze-cron.sh verify file:///backups/app.bak.zst zstd`.
+- `local` storage writes `<file>.manifest.json` beside each backup (database,
+  type, pipeline with secrets redacted, sizes and SHA-256) and `prune`
+  removes it with the backup.
