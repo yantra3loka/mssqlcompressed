@@ -62,6 +62,12 @@ namespace SqlSqueeze.Core
         public List<string> Pipeline { get; set; } = new List<string>();
         public List<ManifestFile> Files { get; set; } = new List<ManifestFile>();
 
+        /// <summary>
+        /// The database's files when it was backed up (logical name and type), so a
+        /// test restore can place them. Null in manifests written before this existed.
+        /// </summary>
+        public List<DatabaseFileInfo> DatabaseFiles { get; set; }
+
         public string ToJson()
         {
             return JsonSerializer.Serialize(this, JsonOptions);

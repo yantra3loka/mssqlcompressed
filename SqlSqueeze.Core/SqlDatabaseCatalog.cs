@@ -47,17 +47,42 @@ ORDER BY d.name;";
             mDatabaseConfig = databaseConfig;
         }
 
+        /// <summary>A connection to the server the db options point at, with the same login and instance rules a backup uses.</summary>
+        internal static SqlConnection OpenConnection(ConfigPair databaseConfig)
+        {
+            IBackupDatabase plugin = databaseConfig.TransformationType.GetConstructor(new System.Type[0]).Invoke(new object[0]) as IBackupDatabase;
+            string dataSource = SqlThread.ResolveDataSource(
+                plugin.GetClusterNetworkName(databaseConfig.Parameters),
+                plugin.GetInstanceName(databaseConfig.Parameters));
+            SqlConnection cnn = new SqlConnection(SqlThread.BuildConnectionString(dataSource, databaseConfig.Parameters));
+            cnn.Open();
+            return cnn;
+        }
+
+        /// <summary>The files of one database (logical name and type), for the manifest.</summary>
+        public List<DatabaseFileInfo> ListFiles(string database)
+        {
+            List<DatabaseFileInfo> files = new List<DatabaseFileInfo>();
+            using (SqlConnection cnn = OpenConnection(mDatabaseConfig))
+            using (SqlCommand cmd = new SqlCommand("SELECT name, type_desc FROM sys.master_files WHERE database_id = DB_ID(@database) ORDER BY file_id;", cnn))
+            {
+                cmd.Parameters.AddWithValue("@database", database);
+                using (SqlDataReader reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        files.Add(new DatabaseFileInfo { LogicalName = reader.GetString(0), Type = reader.GetString(1) });
+                    }
+                }
+            }
+            return files;
+        }
+
         public List<DatabaseInfo> List()
         {
-            IBackupDatabase plugin = mDatabaseConfig.TransformationType.GetConstructor(new System.Type[0]).Invoke(new object[0]) as IBackupDatabase;
-            string dataSource = SqlThread.ResolveDataSource(
-                plugin.GetClusterNetworkName(mDatabaseConfig.Parameters),
-                plugin.GetInstanceName(mDatabaseConfig.Parameters));
-
             List<DatabaseInfo> databases = new List<DatabaseInfo>();
-            using (SqlConnection cnn = new SqlConnection(SqlThread.BuildConnectionString(dataSource, mDatabaseConfig.Parameters)))
+            using (SqlConnection cnn = OpenConnection(mDatabaseConfig))
             {
-                cnn.Open();
                 using (SqlCommand cmd = new SqlCommand(Query, cnn))
                 using (SqlDataReader reader = cmd.ExecuteReader())
                 {

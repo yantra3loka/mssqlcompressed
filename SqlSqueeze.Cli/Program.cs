@@ -95,6 +95,9 @@ namespace SqlSqueeze.Cli
                                     case "backup-all":
                                         PrintBackupAllUsage();
                                         break;
+                                    case "test-restore":
+                                        PrintTestRestoreUsage();
+                                        break;
                                     case "listplugins":
                                         Console.WriteLine("Lists the plugins available.  Go on, try it.");
                                         break;
@@ -168,6 +171,25 @@ namespace SqlSqueeze.Cli
                                 catch (Exception e)
                                 {
                                     HandleException(e, false, json);
+                                    return -1;
+                                }
+                            }
+                        case "test-restore":
+                            {
+                                try
+                                {
+                                    return TestRestore(args, json, pipelineComponents, databaseComponents, storageComponents);
+                                }
+                                catch (Exception e)
+                                {
+                                    if (json)
+                                    {
+                                        PrintJsonError("test-restore", InnermostMessage(e));
+                                    }
+                                    else
+                                    {
+                                        HandleException(e, false, false);
+                                    }
                                     return -1;
                                 }
                             }
@@ -427,6 +449,77 @@ namespace SqlSqueeze.Cli
                 });
             PrintBackupAllResult(result, json);
             return result.AllOk ? 0 : -1;
+        }
+
+        // sqlsqueeze test-restore <storage> [pipeline...] --db "db(...)" [--keep] [--physical-only]
+        private static int TestRestore(string[] args, bool json, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> storageComponents)
+        {
+            string dbSpec = null;
+            bool keep = false;
+            bool physicalOnly = false;
+            List<string> positional = new List<string>();
+            for (int i = 1; i < args.Length; i++)
+            {
+                switch (args[i].ToLowerInvariant())
+                {
+                    case "--db":
+                        dbSpec = NextArg(args, ref i, "--db");
+                        break;
+                    case "--keep":
+                        keep = true;
+                        break;
+                    case "--physical-only":
+                        physicalOnly = true;
+                        break;
+                    default:
+                        positional.Add(args[i]);
+                        break;
+                }
+            }
+            if (positional.Count < 1 || dbSpec == null)
+            {
+                throw new ArgumentException("Usage: sqlsqueeze test-restore <storage> [pipeline...] --db \"db(user=sa;passwordEnv=PW)\" [--keep] [--physical-only] [--json]");
+            }
+
+            ConfigPair storageConfig = ConfigUtil.ParseComponentConfig(storageComponents, StorageArgToPlugin(positional[0]));
+            List<ConfigPair> pipelineConfig = BuildPipelineFromString(positional.GetRange(1, positional.Count - 1), pipelineComponents);
+            ConfigPair databaseConfig = ConfigUtil.ParseComponentConfig(databaseComponents, dbSpec);
+
+            DateTime started = DateTime.UtcNow;
+            TestRestoreResult result = BackupPipeSystem.TestRestore(storageConfig, pipelineConfig, databaseConfig, keep, physicalOnly, new CommandLineNotifier(false, !json));
+            double seconds = (DateTime.UtcNow - started).TotalSeconds;
+
+            if (json)
+            {
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    status = result.Ok ? "ok" : "error",
+                    operation = "test-restore",
+                    scratchDatabase = result.ScratchDatabase,
+                    restoredBytes = result.RestoredBytes,
+                    dropped = result.Dropped,
+                    elapsedSeconds = seconds,
+                    problems = result.Problems,
+                }));
+            }
+            else
+            {
+                Console.WriteLine();
+                foreach (string problem in result.Problems)
+                {
+                    Console.WriteLine("problem: " + problem);
+                }
+                if (result.Ok)
+                {
+                    Console.WriteLine(string.Format("Test restore passed: {0} bytes restored into {1} and DBCC CHECKDB found no errors ({2:0.0}s).", result.RestoredBytes, result.ScratchDatabase, seconds));
+                }
+                else
+                {
+                    Console.WriteLine("Test restore FAILED.");
+                }
+                Console.WriteLine(result.Dropped ? string.Format("Dropped {0}.", result.ScratchDatabase) : string.Format("{0} was NOT dropped; remove it when you are done.", result.ScratchDatabase));
+            }
+            return result.Ok ? 0 : -1;
         }
 
         private static string NextArg(string[] args, ref int i, string flag)
@@ -701,6 +794,7 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze prune");
             Console.WriteLine("\tsqlsqueeze backup-all");
             Console.WriteLine("\tsqlsqueeze verify");
+            Console.WriteLine("\tsqlsqueeze test-restore");
             Console.WriteLine("\tsqlsqueeze listplugins");
             Console.WriteLine("\tsqlsqueeze helpplugin");
             Console.WriteLine("\tsqlsqueeze version");
@@ -739,6 +833,22 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze prune \"local(dir=c:\\backups;pattern=*.bak.gz;olderThanDays=30)\"");
             Console.WriteLine("Deletes files in dir matching pattern (default *) whose last-write");
             Console.WriteLine("time is older than olderThanDays (minimum 1). Subfolders are skipped.");
+            Console.WriteLine("Append --json for one machine-readable result line.");
+        }
+
+        private static void PrintTestRestoreUsage()
+        {
+            Console.WriteLine("To prove a full backup restores to a healthy database:");
+            Console.WriteLine("\tsqlsqueeze test-restore file:///backups/app/app_full.bak.zst zstd \\");
+            Console.WriteLine("\t    --db \"db(user=sa;passwordEnv=SQL_PW)\"");
+            Console.WriteLine("It restores the backup into a scratch database named sqs_testrestore_<db>_<time> in the");
+            Console.WriteLine("server's default data and log folders (the original database is never touched), runs");
+            Console.WriteLine("DBCC CHECKDB on it, and drops it again. Needs the manifest next to the backup (for the");
+            Console.WriteLine("database name and file list), the SQL Server machine (on Linux the mssql user), and free");
+            Console.WriteLine("disk space for a copy of the database. Only full backups. It refuses to start if a");
+            Console.WriteLine("database with the scratch name exists, and only ever drops the one it created.");
+            Console.WriteLine("--keep leaves the scratch database in place. --physical-only runs the faster");
+            Console.WriteLine("DBCC CHECKDB ... PHYSICAL_ONLY. Exit code 0 when it restored and CHECKDB was clean.");
             Console.WriteLine("Append --json for one machine-readable result line.");
         }
 

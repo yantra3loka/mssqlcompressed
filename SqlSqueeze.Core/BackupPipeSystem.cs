@@ -106,6 +106,28 @@ namespace SqlSqueeze.Core
         }
 
 
+        /// <summary>
+        /// Restores a full backup into a scratch database next to the real ones, runs
+        /// DBCC CHECKDB on it and drops it, to prove the backup restores to a healthy
+        /// database. Needs the manifest written next to the backup.
+        /// </summary>
+        public static TestRestoreResult TestRestore(ConfigPair storageConfig, List<ConfigPair> pipelineConfig, ConfigPair databaseConfig, bool keep, bool physicalOnly, IUpdateNotification notifier)
+        {
+            IBackupStorage storage = storageConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
+            BackupManifest manifest = null;
+            IManifestStorage manifests = storage as IManifestStorage;
+            if (manifests != null)
+            {
+                string json = manifests.ReadManifest(storageConfig.Parameters);
+                if (json != null)
+                {
+                    manifest = BackupManifest.FromJson(json);
+                }
+            }
+            return TestRestoreRunner.Run(manifest, new SqlTestRestoreHost(storageConfig, pipelineConfig, databaseConfig, notifier), keep, physicalOnly, DateTime.UtcNow);
+        }
+
+
         /// <summary>A copy of the db options that makes the restore side run RESTORE VERIFYONLY.</summary>
         internal static ConfigPair VerifyOnlyConfig(ConfigPair databaseConfig, string databaseName = null)
         {
@@ -297,6 +319,15 @@ namespace SqlSqueeze.Core
                 string backupType = FirstValue(databaseConfig.Parameters, "backuptype", "full");
                 BackupManifest manifest = recorder.Build(database, backupType, ((IBackupPlugin)storage).Name,
                     DescribePipeline(pipelineConfig), manifests.GetFileNames(storageConfig.Parameters));
+                try
+                {
+                    manifest.DatabaseFiles = new SqlDatabaseCatalog(databaseConfig).ListFiles(database);
+                }
+                catch (Exception e)
+                {
+                    // Only a later test restore needs the file list; the manifest is still worth writing without it.
+                    Console.Error.WriteLine("warning: the database's file list could not be read for the manifest: " + e.Message);
+                }
                 manifests.WriteManifest(storageConfig.Parameters, manifest.ToJson());
             }
             catch (Exception e)
