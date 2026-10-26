@@ -18,8 +18,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - version: '2019'
+            ubuntu: '22.04'
           - version: '2022'
             ubuntu: '22.04'
+          - version: '2022'
+            ubuntu: '24.04'
+          - version: '2025'
+            ubuntu: '22.04'
+          - version: '2025'
+            ubuntu: '24.04'
     runs-on: ubuntu-${{ matrix.ubuntu }}
     timeout-minutes: 40
     env:
