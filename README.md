@@ -18,7 +18,7 @@ sqlsqueeze prune "local(dir=/backups;pattern=*.zst;olderThanDays=30)" --json
 ```
 
 Plugins: `db` (database) · `gzip` `bzip2` `zip64` `zstd` `aes` `rate`
-(pipeline) · `local` (file storage). Run `sqlsqueeze help`,
+(pipeline) · `local` `s3` `azure` (storage). Run `sqlsqueeze help`,
 `sqlsqueeze listplugins`, `sqlsqueeze helpplugin <name>` for details.
 
 ## Scripting
@@ -95,26 +95,34 @@ place it next to the published binary or in `/opt/mssql/lib`.
 
 Done so far: .NET 10 port · Linux backend · `aes` + `zstd` plugins ·
 `prune` retention · `--json` scripting API · PowerShell module · SQL Agent
-templates · msdb dashboard · CI + binary releases.
+templates · msdb dashboard · CI + binary releases · live validation on
+Windows and Linux · `s3` + `azure` storage plugins · native-format
+`RESTORE VERIFYONLY` Agent job · restore-chain helper (full → diff → logs,
+NORECOVERY/STANDBY) · failure alerting (Agent operator + cron webhook) ·
+write retry with backoff (`writeretries=`) on `local`, `s3` and `azure`.
 
 Still to do, in order:
 
-1. **Live validation (the gate for everything).** Real `backup` +
-   `restore` on Windows SQL 2019/2022 and Linux SQL 2022, including
-   striped, differential, and log chains. Nothing here is
-   production-claimed until this passes.
-2. **Cloud storage plugin.** S3-compatible + Azure Blob destinations.
-   Needs real cloud targets to verify against — untested backup code is
-   worse than none, so this waits for them.
-3. **Scheduled verify jobs.** `RESTORE VERIFYONLY` Agent template +
-   `Test-SqlBackup` wired into the sample schedules.
-4. **Log-shipping helpers.** Restore-chain scripts (full → diff → logs
-   with NORECOVERY/STANDBY) built on the Agent templates.
-5. **Alerting example.** Email/webhook on nonzero exit for Agent and
-   cron/Task Scheduler setups.
-6. **Network resilience.** Redgate retries through dropped shares; a
-   failed write today fails the job. Retry-with-backoff on storage
-   writes (and resume-friendly chunking for large files).
+1. **Verify SqlSqueeze's own backups.** `RESTORE VERIFYONLY` rejects the
+   compressed output, so the existing verify job only covers
+   native-format files. Needs a `verify` command plus scheduled
+   test-restore with `DBCC CHECKDB`.
+2. **Self-describing backup files.** Restore needs the exact pipeline you
+   backed up with. Needs a manifest (database, backup type, pipeline,
+   size, checksum) and a way to convert back to a native `.bak`.
+3. **Broader live validation.** Windows is verified on SQL Server 2025
+   Express and Linux on SQL Server 2022. Still to cover: 2016–2025 on
+   both OSes, in CI.
+4. **Multi-database backup and log-chain logic.** One database per
+   command today; no "all user databases", include/exclude patterns, or
+   fall back to a full backup when a log chain has no base.
+5. **Resumable transfers, copy queue, real-cloud testing.** Writes retry
+   with backoff within a run, but nothing resumes an interrupted upload
+   in a later run and there is no copy-to/log-copy queue (Redgate keeps
+   retrying for up to 24 hours). S3 and Azure were tested against moto
+   and Azurite only, not real cloud accounts.
+6. **Restore ergonomics.** Kill connections first, restore the latest
+   chain automatically, report orphaned users, restore from cloud.
 
 Non-goals: a GUI (the engine + scripts + docs slot into the Ola/dbatools
 setups DBAs already run); anything that only works untested.
@@ -124,11 +132,13 @@ setups DBAs already run); anything that only works untested.
 - `dotnet build -c Release`: 0 warnings, 0 errors (Linux).
 - CLI `version` / `listplugins` / `help`: pass.
   (`sqlsqueeze v1.3.0.0 (.NET 10.0.13, X64)`, all 8 plugins found.)
-- xUnit suite: **26/26 pass** — pipeline round-trips (gzip, bzip2,
+- xUnit suite: **49/49 pass** — pipeline round-trips (gzip, bzip2,
   zip64 named + first, zstd, rate, local, gzip→aes chain), AES (env key,
   random salt, wrong-password/truncated/missing-key failures, KDF golden
-  vector), prune (age/pattern/defaults/validation), date tokens, backend
-  selection, restore byte counting.
+  vector), prune (age/pattern/defaults/validation, including S3 and Azure
+  listings that end with an empty `NextContinuationToken`/`NextMarker`),
+  date tokens, backend selection, restore byte counting, SQL login
+  options, write retries, S3 and Azure storage against mocked services.
 - Backend selection on Linux without SQL Server: factory picks the Linux
   backend and fails with the friendly missing-`libmsbpvdi.so` error:
   **PASS**. Struct/enum values asserted: **PASS**.
@@ -140,6 +150,17 @@ setups DBAs already run); anything that only works untested.
   backup as `device_type 7` (virtual device). Restore order is the same
   as backup order (each layer inverts itself); VERIFYONLY/HEADERONLY
   reject compressed files by design, like Redgate `.sqb` files.
-- Live against SQL Server on Linux: **not yet run** — the Windows and
-  Linux VDI paths share everything above the backend, but the shim
-  (`native/linux`) still needs its first real backup.
+- Live against SQL Server 2022 on Linux (RTM-CU27, 16.0.4295.3,
+  2026-10-26): **PASS**. A 20,000-row database backed up through the
+  `native/linux` shim and restored (also with `MOVE` to a new database)
+  with identical checksums. The first run exposed a heap corruption at
+  the end of a working backup: the shim deleted the device object, which
+  the device set owns. Fixed in `05e7aee`.
+- S3 and Azure storage, live against emulators (2026-10-26): **PASS**.
+  `s3` against moto: 6 MB multipart round trip byte-correct, prune
+  verified. `azure` against Azurite: 3 MB in 3 blocks, SHA-256 identical
+  after download. Not yet run against real S3 or Azure. Live runs found
+  two real bugs that mocks missed: an Azure SharedKey canonical-resource
+  signing error, and a prune loop that never ended because both services
+  send an empty continuation element on the last page (fixed in
+  `31099ca`).
