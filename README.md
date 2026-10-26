@@ -181,13 +181,23 @@ locally and then copying is the way to get Redgate-style network resilience.
 - It **checks what it read against the manifest** before anything is
   committed, so a source that has changed or been damaged since the backup is
   refused rather than copied as if it were good.
+- Copying to S3 or Azure **resumes**. An attempt cut off by the network keeps
+  its unfinished upload on the server (it is suspended, not discarded), and
+  the next attempt, or running the command again hours later, continues it:
+  the source is read again from the start (it is checked against the manifest
+  as it is read) but parts the server already holds are not sent again. S3
+  compares each part's MD5 with the server's ETag; Azure puts a hash of each
+  block in its block id, so a part is only ever reused when its bytes are
+  identical, never mixed in. The result says how much was not re-sent
+  (`bytesSkipped`).
 - The manifest is written **last**, so a destination holding a backup but no
-  manifest is an unfinished copy. A failed attempt is aborted, never left as a
-  truncated object. Running it again is always safe.
+  manifest is an unfinished copy. A copy that is given up, or fails for a
+  reason retrying cannot fix, is aborted and its unfinished upload removed,
+  never left as a truncated object. Running it again is always safe.
 - Both storages need the same number of files (stripes). The copied
   manifest names the destination's files.
-- Not built yet: resuming an interrupted copy part-way (a retry copies the
-  file again from the start), and a `--copy-to` option on `backup` itself.
+- Not built yet: a `--copy-to` option on `backup` itself (copy is a second
+  command).
 
 ## Scripting
 
@@ -273,7 +283,8 @@ write retry with backoff (`writeretries=`) on `local`, `s3` and `azure` ·
 backup manifests · `test-restore` (scratch restore + `DBCC CHECKDB`) ·
 `unpack` (back to a plain native `.bak`) and `--from-manifest` (no retyping the
 pipeline), for local, S3 and Azure storage · `restore --kill-connections` and
-orphaned-user warnings · `copy` (retries through outages, checked against the manifest) · `restore-chain` (latest full + diff + logs, point in
+orphaned-user warnings · `copy` (retries through outages for up to 24 hours,
+resumes unfinished S3 and Azure uploads, checked against the manifest) · `restore-chain` (latest full + diff + logs, point in
 time, standby) · `backup-all` (many databases, full/diff/log planning).
 
 Still to do, in order:
@@ -281,11 +292,9 @@ Still to do, in order:
 1. **Broader live validation.** Windows is verified on SQL Server 2025
    Express and Linux on SQL Server 2022. Still to cover: 2016–2025 on
    both OSes, in CI.
-2. **Resuming a copy part-way, `--copy-to`, real-cloud testing.** `copy`
-   retries through outages for up to 24 hours, but a retry copies the whole
-   file again, and `backup` has no built-in copy-to (copy is a second
-   command). S3 and Azure were tested against moto and Azurite only, not
-   real cloud accounts.
+2. **`--copy-to`, real-cloud testing.** `backup` has no built-in copy-to
+   (copy is a second command). S3 and Azure were tested against moto and
+   Azurite only, not real cloud accounts.
 3. **Chains from cloud storage and by LSN.** `restore-chain` reads local
    folders only (S3 and Azure have no listing yet), and picks by time taken
    rather than by log sequence number.
@@ -394,6 +403,14 @@ setups DBAs already run); anything that only works untested.
   marks them aborted, writes after an abort are discarded, and S3 deletes the
   multipart upload. Any object that failed backups left behind in cloud
   storage should be deleted; a good backup always has a manifest beside it.
+- Resuming a copy, live against moto and Azurite (2026-10-26): **PASS**. A
+  ~56 MB backup copied through a proxy that cut the connection once after
+  about 28 MB. To S3 (5 MB parts): attempt 1 died mid-upload, attempt 2
+  continued the same multipart upload and did not re-send 25 MB (five
+  parts); the object verified from its manifest and no upload was left
+  open. To Azure (4 MB blocks): the same, 24 MB not re-sent; the blob
+  verified, unpacked, and restored with plain `sqlcmd` to an identical
+  row count and checksum.
 - `copy`, live against moto and Azurite (2026-10-26): **PASS**. A `zstd` +
   `aes` backup copied to S3 verified from its own manifest with no pipeline
   typed. With Azurite stopped, a copy to Azure failed three times with

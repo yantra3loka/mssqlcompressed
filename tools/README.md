@@ -128,8 +128,9 @@ queries for "latest per database" and "missing a fresh full".
   backup of that database in the folder) is a top-level
   `{status:"error", message}`.
 - `sqlsqueeze copy <source> <destination> --json` prints `{status,
-  operation:"copy", attempts, bytesCopied, elapsedSeconds, warnings[],
-  problems[]}`; `status:"error"` (exit `-1`) means it gave up or hit a fault
+  operation:"copy", attempts, bytesCopied, bytesSkipped, elapsedSeconds,
+  warnings[], problems[]}` (`bytesSkipped`: bytes an S3 or Azure destination
+  already held from an earlier attempt, read but not sent again); `status:"error"` (exit `-1`) means it gave up or hit a fault
   retrying cannot fix, and `problems` says which. A source that does not match
   its manifest is an error, not a warning. Different file counts, or the same
   source and destination, are a top-level `{status:"error", message}`.
