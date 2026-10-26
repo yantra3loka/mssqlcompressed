@@ -17,17 +17,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # repo_ubuntu is which Microsoft package repository to use: Microsoft publishes
-        # no SQL Server 2022 list for Ubuntu 24.04, so the 22.04 one is used there.
+        # Only combinations Microsoft's packages support on a free runner. Not here, and why:
+        #   SQL Server 2019 on Ubuntu 22.04: the package needs libldap-2.4, gone from 22.04.
+        #   SQL Server 2022 on Ubuntu 24.04: installs but will not start (needs liblber-2.5).
+        # repo_ubuntu is which Microsoft package repository to use.
         include:
-          - version: '2019'
-            ubuntu: '22.04'
-            repo_ubuntu: '20.04'
           - version: '2022'
             ubuntu: '22.04'
-            repo_ubuntu: '22.04'
-          - version: '2022'
-            ubuntu: '24.04'
             repo_ubuntu: '22.04'
           - version: '2025'
             ubuntu: '22.04'
