@@ -8,7 +8,12 @@ name: Live SQL Server
 
 on:
   push:
-    branches: [live-ci]
+    branches: [master, live-ci]
+  pull_request:
+  schedule:
+    # Weekly, so a new SQL Server build or a change in Microsoft's packages shows up
+    # here before it shows up for a user.
+    - cron: '17 5 * * 1'
   workflow_dispatch:
 
 jobs:

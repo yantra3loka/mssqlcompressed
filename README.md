@@ -343,6 +343,13 @@ setups DBAs already run); anything that only works untested.
   backup as `device_type 7` (virtual device). Restore order is the same
   as backup order (each layer inverts itself); VERIFYONLY/HEADERONLY
   reject compressed files by design, like Redgate `.sqb` files.
+- Live in CI on free GitHub runners (2026-10-26): **PASS**. SQL Server 2022 on
+  Ubuntu 22.04 and SQL Server 2025 on Ubuntu 22.04 and 24.04, each installed
+  natively, run 25 end-to-end checks (`tools/live-test/linux-live.sh`: backup
+  types, restore, `verify --sql`, `test-restore`, `unpack`, `restore-chain`,
+  `backup-all`). The first run found that SQL Server 2025 on Linux could not take
+  a backup (`undefined symbol: uuid_generate`); the shim now links libuuid. Not
+  covered: SQL Server 2019, and Windows.
 - Live against SQL Server 2022 on Linux (RTM-CU27, 16.0.4295.3,
   2026-10-26): **PASS**. A 20,000-row database backed up through the
   `native/linux` shim and restored (also with `MOVE` to a new database)

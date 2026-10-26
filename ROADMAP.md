@@ -79,7 +79,16 @@ These come first because they decide whether anyone can rely on the rest, and
 because most of them are what turns "tested once by hand" into "tested on every
 change, for free".
 
-1. **Run real SQL Server in CI, for free.** The live tests so far were run by
+1. **Run real SQL Server in CI, for free.** *Linux half done (2026-10-26):*
+   `.github/workflows/live-sql.yml` installs SQL Server natively on a free runner
+   and runs 25 live checks (`tools/live-test/linux-live.sh`) against 2022 on
+   Ubuntu 22.04 and 2025 on 22.04 and 24.04, on every push and pull request and
+   weekly. It already paid for itself: SQL Server 2025 on Linux could not take a
+   backup at all until the shim linked libuuid. SQL Server 2019 (its package needs
+   `libldap-2.4`, which Ubuntu 22.04 no longer ships) and 2022 on Ubuntu 24.04
+   (installs but will not start) cannot run on a free runner. *Still to do:* the
+   Windows runner, and 2019 through a container image whose OS Microsoft supports.
+   Original description: the live tests had been run by
    hand on one machine. GitHub's hosted runners are free for public repositories
    (confirm the current terms), and SQL Server Developer edition is free for
    testing. *Done when:* a CI job installs SQL Server natively on a Linux runner
@@ -226,5 +235,7 @@ Nothing here costs money.
 - A backup streaming straight into S3 or Azure cannot be resumed if the network
   drops; use a local backup plus `--copy-to` (this is a property of how SQL
   Server writes a backup, not something to fix).
+- SQL Server 2025 on Linux could not take any backup with v1.6.0 and earlier (the
+  shim did not link libuuid, which 2025's `libsqlvdi.so` needs); fixed on master.
 - v1.4.0 and earlier can write unrestorable `zstd`+`aes` backups and leave
   truncated cloud objects; fixed in v1.5.0.
