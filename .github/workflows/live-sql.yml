@@ -1,0 +1,64 @@
+# Runs SqlSqueeze's live scenarios against a REAL SQL Server, for free, on a
+# GitHub-hosted runner (free for public repositories). The unit tests in CI use
+# fakes; this installs SQL Server (Developer edition, which Microsoft licenses
+# for development and testing) natively on the runner, because VDI needs the
+# client and the server on the same host, builds the Linux VDI shim against it,
+# and runs tools/live-test/linux-live.sh.
+name: Live SQL Server
+
+on:
+  push:
+    branches: [live-ci]
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: SQL Server ${{ matrix.version }} on Ubuntu ${{ matrix.ubuntu }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: '2022'
+            ubuntu: '22.04'
+    runs-on: ubuntu-${{ matrix.ubuntu }}
+    timeout-minutes: 40
+    env:
+      # Not a secret: this SQL Server exists only for the length of this job.
+      SA_PASSWORD: 'Sq!Live-Test-2026'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install SQL Server ${{ matrix.version }} (Developer edition, for testing)
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc > /dev/null
+          curl -fsSL "https://packages.microsoft.com/config/ubuntu/${{ matrix.ubuntu }}/mssql-server-${{ matrix.version }}.list" \
+            | sudo tee /etc/apt/sources.list.d/mssql-server-${{ matrix.version }}.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y mssql-server mssql-tools18 unixodbc-dev
+          sudo MSSQL_SA_PASSWORD="$SA_PASSWORD" MSSQL_PID=Developer ACCEPT_EULA=Y /opt/mssql/bin/mssql-conf -n setup accept-eula
+          systemctl is-active mssql-server
+          for i in $(seq 1 30); do
+            /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SA_PASSWORD" -Q "SELECT @@VERSION" && break
+            sleep 2
+          done
+
+      - name: Build and publish SqlSqueeze with the VDI shim
+        run: |
+          make -C native/linux
+          dotnet publish SqlSqueeze.Cli -c Release -r linux-x64 --self-contained -o out
+          cp native/linux/libmsbpvdi.so out/
+          # the mssql user must be able to run it
+          sudo rm -rf /opt/sqs-app && sudo cp -r out /opt/sqs-app && sudo chmod -R a+rX /opt/sqs-app
+
+      - name: Live tests
+        run: SQS_APP=/opt/sqs-app SA_PASSWORD="$SA_PASSWORD" bash tools/live-test/linux-live.sh
+
+      - name: SQL Server error log (on failure)
+        if: failure()
+        run: |
+          sudo tail -n 80 /var/opt/mssql/log/errorlog || true
+          sudo journalctl -u mssql-server --no-pager | tail -n 40 || true
