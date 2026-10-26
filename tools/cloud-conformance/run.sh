@@ -131,9 +131,7 @@ fi
 
 # ---- 1. multipart upload, verified in place, downloaded bit-identical ----
 fixture multi.bak $((12 * 1024 * 1024 + 4321)) gzip
-start=$(date +%s.%N 2> /dev/null || date +%s)
 out=$(upload multi.bak)
-end=$(date +%s.%N 2> /dev/null || date +%s)
 expect "upload of a multi-part object (12 MiB, ${PART_MB} MiB parts) succeeds" "$out" ".status == \"ok\" and .bytesCopied > 12000000"
 expect "the object verifies in the cloud against its manifest (size and sha256)" "$(cloud_verify multi.bak)" '.status == "ok" and .manifestFound == true'
 out=$(download multi.bak multi.down)
@@ -173,12 +171,18 @@ download over.bak over.down > /dev/null
 expect_eq "the object now holds the new content, not the old" "$(sha256 "$WORK/over.down" 2> /dev/null)" "$(sha256 "$WORK/over.bak")"
 
 # ---- 5. a copy killed half way is resumed, not restarted ----
+# Time one complete copy of the big file, then kill copies at about half that time. Too early
+# (nothing stored yet) and too late (it finished) both narrow the window, so the kill time is
+# bisected until a copy is caught part-way.
+now() { if [ -n "${EPOCHREALTIME:-}" ]; then echo "${EPOCHREALTIME/,/.}"; else date +%s; fi; }
 fixture big.bak $((BIG_MB * 1024 * 1024)) none
-secs=$(awk -v a="$start" -v b="$end" 'BEGIN { d = b - a; if (d < 0.5) d = 0.5; print d }')
-# the multi-part upload above moved about 12.6 MB in $secs seconds; aim to kill a copy of the big file about half way
-kill_after=$(awk -v s="$secs" -v mb="$BIG_MB" 'BEGIN { t = s * mb / 12.6 * 0.5; if (t < 0.8) t = 0.8; printf "%.1f", t }')
+t0=$(now); out=$(upload big.bak); t1=$(now)
+expect "the big object (${BIG_MB} MiB) uploads" "$out" '.status == "ok"'
+full=$(awk -v a="$t0" -v b="$t1" 'BEGIN { d = b - a; if (d < 1) d = 1; print d }')
+kill_after=$(awk -v d="$full" 'BEGIN { printf "%.2f", d * 0.5 }')
+lo=0; hi=$full   # lo: a kill at this time came before anything was stored; hi: the copy had finished by this time
 resumed=no
-for attempt in 1 2 3 4 5; do
+for attempt in 1 2 3 4 5 6; do
     key=big$attempt.bak
     cp "$WORK/big.bak" "$WORK/$key"; cp "$WORK/big.bak.manifest.json" "$WORK/$key.manifest.json"
     "$APP" copy "file://$WORK/$key" "$(spec "$key")" --max-hours 0.01 --backoff-seconds 1 --json > "$WORK/kill.out" 2>> "$ERRLOG" &
@@ -188,8 +192,8 @@ for attempt in 1 2 3 4 5; do
     wait "$pid" 2> /dev/null; rc=$?
     kill "$killer" 2> /dev/null; wait "$killer" 2> /dev/null
     if [ "$rc" -eq 0 ]; then
-        # finished before the kill: too fast, aim earlier
-        kill_after=$(awk -v t="$kill_after" 'BEGIN { t = t * 0.5; if (t < 0.2) t = 0.2; printf "%.1f", t }')
+        hi=$kill_after   # finished before the kill: aim earlier
+        kill_after=$(awk -v l="$lo" -v h="$hi" 'BEGIN { printf "%.2f", (l + h) / 2 }')
         continue
     fi
     out=$(sqs copy "file://$WORK/$key" "$(spec "$key")" --max-hours 0.01 --backoff-seconds 1 --json | last_json)
@@ -197,8 +201,8 @@ for attempt in 1 2 3 4 5; do
     copied=$(printf '%s' "$out" | jq -r '.bytesCopied // 0' 2> /dev/null)
     if [ "$(printf '%s' "$out" | jq -r .status 2> /dev/null)" != ok ]; then bad "resume after a killed copy completes" "got: $(printf '%s' "$out" | cut -c1-300)"; resumed=failed; break; fi
     if [ "${skipped:-0}" -eq 0 ]; then
-        # killed before the first part was stored: nothing to resume yet, aim later
-        kill_after=$(awk -v t="$kill_after" 'BEGIN { printf "%.1f", t * 1.7 }')
+        lo=$kill_after   # killed before the first part was stored: aim later
+        kill_after=$(awk -v l="$lo" -v h="$hi" 'BEGIN { printf "%.2f", (l + h) / 2 }')
         continue
     fi
     ok "a copy killed at ${kill_after}s resumes: $skipped of $copied bytes were already stored and skipped"
@@ -207,7 +211,7 @@ for attempt in 1 2 3 4 5; do
     resumed=yes
     break
 done
-if [ "$resumed" = no ]; then bad "could not catch a copy part-way in 5 attempts (the service is too fast or too slow for SQS_BIG_MB=$BIG_MB; set it higher or lower)"; fi
+if [ "$resumed" = no ]; then bad "could not catch a copy part-way in 6 attempts (a full copy took ${full}s; try a larger SQS_BIG_MB)"; fi
 
 # ---- 6. failures are clean ----
 out=$(sqs copy "file://$WORK/tiny.bak" "$(spec_badsecret never.bak)" --max-hours 0.001 --backoff-seconds 1 --json | last_json)
