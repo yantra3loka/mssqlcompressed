@@ -44,7 +44,11 @@ jobs:
 
       - name: Start ${{ matrix.server }}
         run: |
-          pip install --quiet boto3 'moto[server]==5.2.4'
+          # a venv: the runner's system Python has packages that clash with boto3's
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet boto3 'moto[server]==5.2.4'
+          export PATH="$RUNNER_TEMP/venv/bin:$PATH"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
           case "${{ matrix.server }}" in
             seaweedfs)
               cat > "$RUNNER_TEMP/s3.json" <<JSON
