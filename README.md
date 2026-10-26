@@ -293,38 +293,26 @@ dotnet publish SqlSqueeze.Cli -c Release -o out
 Linux additionally: build `native/linux/libmsbpvdi.so` (see above) and
 place it next to the published binary or in `/opt/mssql/lib`.
 
-## Roadmap — making it a true Redgate replacement
+## Roadmap
 
-Done so far: .NET 10 port · Linux backend · `aes` + `zstd` plugins ·
-`prune` retention · `--json` scripting API · PowerShell module · SQL Agent
-templates · msdb dashboard · CI + binary releases · live validation on
-Windows and Linux · `s3` + `azure` storage plugins · native-format
-`RESTORE VERIFYONLY` Agent job · restore-chain helper (full → diff → logs,
-NORECOVERY/STANDBY) · failure alerting (Agent operator + cron webhook) ·
-write retry with backoff (`writeretries=`) on `local`, `s3` and `azure` ·
-`verify` (hashes, and `--sql` for SQL Server's own `RESTORE VERIFYONLY`) +
-backup manifests · `test-restore` (scratch restore + `DBCC CHECKDB`) ·
-`unpack` (back to a plain native `.bak`) and `--from-manifest` (no retyping the
-pipeline), for local, S3 and Azure storage · `restore --kill-connections` and
-orphaned-user warnings · `copy` (retries through outages for up to 24 hours,
-resumes unfinished S3 and Azure uploads, checked against the manifest) and
-`--copy-to` on `backup` and `backup-all` · `restore-chain` (latest full + diff + logs, point in
-time, standby) · `backup-all` (many databases, full/diff/log planning).
+The aim is a backup tool that is **better than Redgate SQL Backup Pro and costs
+nothing**: free to use, and free to build, test and release (free GitHub tiers,
+free SQL Server editions, free emulators), with every "better" claim published
+only after it has been measured. The full roadmap, with what is done, what comes
+next and why, and what needs the owner's decision, is in
+**[ROADMAP.md](ROADMAP.md)**. In short, what is built and tested: compressed and encrypted backups through VDI on Windows and
+Linux; full, differential, log and multi-database backups; `verify` (hashes and
+SQL Server's own `RESTORE VERIFYONLY`) and `test-restore` with `DBCC CHECKDB`;
+manifests, `unpack` and `--from-manifest`; `restore-chain`, `--kill-connections`
+and orphan warnings; S3 and Azure storage; `copy` and `--copy-to` with retry
+and resume. What comes next is mostly about trust: running real SQL Server in free CI on
+Windows and Linux across versions, S3 and Azure conformance without paid
+accounts, and authenticated encryption. After that, the features meant to put
+it ahead: automatic proof-of-recovery drills, public-key encryption with
+immutable destinations so a compromised backup host cannot read or delete its
+backups, RPO monitoring, and policy as code.
 
-Still to do, in order:
-
-1. **Broader live validation.** Windows is verified on SQL Server 2025
-   Express and Linux on SQL Server 2022. Still to cover: 2016–2025 on
-   both OSes, in CI.
-2. **Real-cloud testing.** S3 and Azure were tested against moto and
-   Azurite only, not real cloud accounts.
-3. **Chains from cloud storage and by LSN.** `restore-chain` reads local
-   folders only (S3 and Azure have no listing yet), and picks by time taken
-   rather than by log sequence number.
-4. **Test restores of differential and log chains.** `test-restore` takes
-   full backups only; `restore-chain --as` could be the base for it.
-
-Non-goals: a GUI (the engine + scripts + docs slot into the Ola/dbatools
+Non-goals: a GUI for now (the engine, scripts and docs slot into the Ola/dbatools
 setups DBAs already run); anything that only works untested.
 
 ## Verification status
