@@ -27,7 +27,12 @@ function Invoke-SqlSqueeze {
     $exe = Resolve-SqlSqueezeExe -ExePath $ExePath
     $lines = & $exe @Arguments --json 2>&1
     $code = $LASTEXITCODE
-    $json = ($lines | Select-Object -Last 1).ToString()
+    # The result is the last line that is a JSON object: the SQL Server VDI
+    # library can print an abort notice after it. Fall back to the last line.
+    $text = @($lines | ForEach-Object { $_.ToString() })
+    $json = $text | Where-Object { $_.TrimStart().StartsWith('{') } | Select-Object -Last 1
+    if (-not $json) { $json = $text | Select-Object -Last 1 }
+    if (-not $json) { $json = '' }
     $result = $null
     try { $result = $json | ConvertFrom-Json } catch { }
     if ($code -ne 0 -or $null -eq $result -or $result.status -ne 'ok') {

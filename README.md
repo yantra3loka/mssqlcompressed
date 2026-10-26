@@ -62,10 +62,18 @@ file. Exit `0` when everything matches, `-1` otherwise; `--json` prints one
 result line. It catches corruption, truncation, a wrong password, and a
 pipeline that does not hand back the stream SQL Server wrote.
 
-What it does not do: ask SQL Server whether that stream is a valid backup.
-Without a manifest (`s3` and `azure` do not write one yet) it can only
-confirm the file decodes, and says so, because corruption can decode
-cleanly (a flipped byte in a zstd file did).
+Add `--sql "db(user=sa;passwordEnv=SQL_PW)"` to also have SQL Server read
+the whole backup: `RESTORE VERIFYONLY` through a virtual device, so the
+pipeline is undone first and compressed or encrypted backups work. That
+needs the SQL Server machine (and on Linux the `mssql` user), and is skipped
+when the file already failed the checks above. It catches what the hashes
+cannot: a file that decodes cleanly but is not a valid backup. Add
+`;CHECKSUM` to the db options to also check page checksums; that only works
+on a backup taken with `checksum` (SQL Server refuses it otherwise).
+
+Without a manifest (`s3` and `azure` do not write one yet) the stream check
+can only confirm the file decodes, and says so, because corruption can
+decode cleanly (a flipped byte in a zstd file did).
 
 ## Scripting
 
@@ -152,11 +160,12 @@ planning).
 
 Still to do, in order:
 
-1. **Verify SqlSqueeze's own backups, the SQL Server half.** `verify` now
-   proves the stored bytes are the bytes that were written. Still to do:
-   ask SQL Server (`RESTORE VERIFYONLY` through VDI; not yet confirmed
-   possible) and a scheduled test-restore with `DBCC CHECKDB`. The
-   existing Agent verify job only covers native-format files.
+1. **Test restores.** `verify` proves the stored bytes are the bytes that
+   were written, and `verify --sql` has SQL Server accept them. Still to
+   do: a scheduled test-restore into a scratch database with
+   `DBCC CHECKDB`, the only way to know a backup restores to a healthy
+   database. The existing Agent verify job only covers native-format
+   files.
 2. **Self-describing backup files, the rest.** The manifest exists for
    `local` storage. Still to do: manifests for `s3`/`azure`, `restore`
    reading the pipeline from the manifest instead of needing it retyped,
@@ -235,6 +244,21 @@ setups DBAs already run); anything that only works untested.
   fallback-to-full worked. With one database's folder made unwritable the
   others still completed and the exit code was `-1`. All 11 backups then
   passed `verify`.
+- `verify --sql`, live against SQL Server 2022 on Linux (2026-10-26):
+  **PASS**. `RESTORE VERIFYONLY` through VDI accepted `zstd` + `aes`
+  backups (with and without page checksums, and `;CHECKSUM` on the one
+  that had them); it refused `;CHECKSUM` on a backup without checksums
+  with SQL Server's own message; it rejected a gzip file that decodes
+  cleanly but is not a backup ("media family incorrectly formed"); and it
+  was skipped for a file that had already failed the hash checks.
+- **The VDI library prints an abort notice after the CLI's JSON line.**
+  When SQL Server aborts a VDI operation, `libsqlvdi` writes a line like
+  `Host_…_SQLVDIMemoryName_0: CVD::GetCommand: Abort bit is set` to stdout
+  after the result, so "the last line" is not always the result. The cron
+  wrapper and the PowerShell module took the last line, so a failed backup
+  alerted with that notice as its message and a successful run could not
+  be parsed. They now take the last line that is a JSON object, and CI runs
+  tests for both (`tools/tests/`).
 - **Differential backups failed on patched SQL Server builds.** The
   `@@VERSION` parser took the first `-` in the string, which on builds like
   `2022 (RTM-CU27)` or `2022 (RTM-GDR)` sits inside the parentheses, so a

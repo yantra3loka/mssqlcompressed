@@ -175,7 +175,13 @@ main() {
     exit_code=$?
 
     if [ "$exit_code" -ne 0 ]; then
-        last_line=$(printf '%s' "$output" | grep -v '^[[:space:]]*$' | tail -n 1)
+        # The result is the last line that is a JSON object. The SQL Server VDI
+        # library can print an abort notice after it, so the last line of output
+        # is not always the result; fall back to it when there is no JSON at all.
+        last_line=$(printf '%s' "$output" | grep '^[[:space:]]*{' | tail -n 1)
+        if [ -z "$last_line" ]; then
+            last_line=$(printf '%s' "$output" | grep -v '^[[:space:]]*$' | tail -n 1)
+        fi
         operation=${command[0]}
         log "$operation failed with exit code $exit_code"
         notify_failure "$operation" "$exit_code" "$(extract_message "$last_line")" || true

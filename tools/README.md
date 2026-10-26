@@ -87,12 +87,18 @@ queries for "latest per database" and "missing a fresh full".
 - Append `--json` to `backup`, `restore` or `prune` for exactly one result
   line on stdout: `{status, operation, bytesProcessed?, estimatedBytes?,
   elapsedSeconds?, mbPerSecond?}` or `{status:"error", operation, message}`.
-  Progress chatter is suppressed in `--json` mode; take the last line.
-- `sqlsqueeze verify <storage> [pipeline...] --json` prints `{status,
-  operation:"verify", manifestFound, storedBytes, rawBytes, problems[]}`.
+  Progress chatter is suppressed in `--json` mode, but other lines can still
+  appear (`local:`, `zstd`, and the SQL Server VDI library's abort notice,
+  which it prints *after* the result). Take the last line that starts with
+  `{`, not simply the last line; the cron wrapper and PowerShell module do.
+- `sqlsqueeze verify <storage> [pipeline...] [--sql "db(...)"] --json`
+  prints `{status, operation:"verify", manifestFound, storedBytes,
+  rawBytes, sqlChecked, sqlMessage, problems[]}`.
   `status` is `ok` only when `problems` is empty (exit `0`); otherwise
   `status:"error"`, `problems` lists what differs, exit `-1`. With
-  `manifestFound:false` an `ok` only means the file decoded. The cron
+  `manifestFound:false` an `ok` only means the file decoded. With `--sql`,
+  `sqlChecked` is true once SQL Server's `RESTORE VERIFYONLY` ran and
+  `sqlMessage` is what it said (or why it failed). The cron
   wrapper reports `problems` as the webhook message, so it can run
   `verify` from cron: `sqlsqueeze-cron.sh verify file:///backups/app.bak.zst zstd`.
 - `sqlsqueeze backup-all <databases> ... --json` prints `{status,
