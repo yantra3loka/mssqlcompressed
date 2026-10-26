@@ -33,6 +33,9 @@ namespace SqlSqueeze.Core
         public long EstimatedBytes;
         public TimeSpan Elapsed;
 
+        /// <summary>Things worth telling the user that did not fail the operation (for example orphaned users after a restore).</summary>
+        public System.Collections.Generic.List<string> Warnings = new System.Collections.Generic.List<string>();
+
         public double MegaBytesPerSecond
         {
             get

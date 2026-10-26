@@ -58,6 +58,8 @@ namespace SqlSqueeze.Plugins.Database
             mRestoreParamSchema.Add("instancename", new ParameterInfo(false, false));
             mRestoreParamSchema.Add("ClusterNetworkName", new ParameterInfo(false, false));
             mRestoreParamSchema.Add("restoretype", new ParameterInfo(false, false));
+            // not a RESTORE option: roll back other sessions first so the restore can get exclusive access
+            mRestoreParamSchema.Add("KILL_CONNECTIONS", new ParameterInfo(false, false));
             mRestoreParamSchema.Add("CHECKSUM", new ParameterInfo(false, false));
             mRestoreParamSchema.Add("NO_CHECKSUM", new ParameterInfo(false, false));
             mRestoreParamSchema.Add("STOP_ON_ERROR", new ParameterInfo(false, false));

@@ -36,6 +36,7 @@ namespace SqlSqueeze.Core
         //private Exception mException;
         private SqlConnection mCnn;
         private SqlCommand mCmd;
+        private string mMultiUserSql;
         private Task mTask;
         private bool mDisposed;
 
@@ -89,6 +90,13 @@ namespace SqlSqueeze.Core
             {
                 dbComponent.ConfigureRestoreCommand(dbConfig, deviceNames, mCmd);
                 estimatedTotalBytes = 0;
+                if (RestorePreparation.WantsKillConnections(dbConfig))
+                {
+                    // A restore over an existing database needs exclusive access: roll back other sessions.
+                    string database = dbConfig["database"][0];
+                    RunNonQuery(RestorePreparation.KillConnectionsSql(database));
+                    mMultiUserSql = RestorePreparation.MultiUserSql(database);
+                }
             }
 
             return deviceNames;
@@ -588,7 +596,21 @@ namespace SqlSqueeze.Core
             }
             catch (Exception e)
             {
+                if (mMultiUserSql != null)
+                {
+                    // The restore failed after other sessions were ended: do not leave the database single-user.
+                    try { RunNonQuery(mMultiUserSql); } catch (Exception) { }
+                }
                 return e;
+            }
+        }
+
+        private void RunNonQuery(string sql)
+        {
+            using (SqlCommand cmd = new SqlCommand(sql, mCnn))
+            {
+                cmd.CommandTimeout = 0;
+                cmd.ExecuteNonQuery();
             }
         }
 

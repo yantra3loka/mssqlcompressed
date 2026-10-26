@@ -160,11 +160,16 @@ namespace SqlSqueeze.Cli
 
                                     List<string> restoreArgs = CopySubArgs(args);
                                     bool fromManifest = restoreArgs.RemoveAll(a => a.Equals("--from-manifest", StringComparison.OrdinalIgnoreCase)) > 0;
+                                    bool killConnections = restoreArgs.RemoveAll(a => a.Equals("--kill-connections", StringComparison.OrdinalIgnoreCase)) > 0;
 
                                     List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(restoreArgs, isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
                                     if (fromManifest)
                                     {
                                         pipelineConfig = PipelineFromManifest(storageConfig, pipelineConfig, pipelineComponents);
+                                    }
+                                    if (killConnections)
+                                    {
+                                        databaseConfig.Parameters["KILL_CONNECTIONS"] = new List<string> { null };
                                     }
 
                                     CommandLineNotifier notifier = new CommandLineNotifier(false, !json);
@@ -417,6 +422,7 @@ namespace SqlSqueeze.Cli
                     estimatedBytes = stats.EstimatedBytes,
                     elapsedSeconds = stats.Elapsed.TotalSeconds,
                     mbPerSecond = stats.MegaBytesPerSecond,
+                    warnings = stats.Warnings,
                 }));
             }
             else
@@ -424,6 +430,10 @@ namespace SqlSqueeze.Cli
                 Console.WriteLine(string.Format("Completed Successfully. {0}", stats.Elapsed));
                 Console.WriteLine(string.Format("{0} bytes processed ({1:0.00} MB/s).",
                     stats.BytesProcessed, stats.MegaBytesPerSecond));
+                foreach (string warning in stats.Warnings)
+                {
+                    Console.WriteLine("warning: " + warning);
+                }
             }
         }
 
@@ -944,6 +954,11 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("To restore a database, the first parameter must be the file, and the last parameter must be the database in brackets.  The middle parameters can modify the data, for example uncompressing it.");
             Console.WriteLine("To restore to a standard *.bak file:");
             Console.WriteLine("\tsqlsqueeze restore file:///c:\\model.bak [model]");
+            Console.WriteLine("--kill-connections rolls back other sessions first, so a restore over a database that is");
+            Console.WriteLine("in use can get exclusive access (it puts the database back to multi-user if the restore");
+            Console.WriteLine("fails). --from-manifest takes the pipeline from the manifest next to the backup.");
+            Console.WriteLine("After a restore that leaves the database usable, users whose login does not exist on this");
+            Console.WriteLine("server are reported as a warning (orphaned users).");
             Console.WriteLine("To compress the backup file using gzip:");
             Console.WriteLine("\tsqlsqueeze restore file:///c:\\model.bak.gz gzip [model]");
             Console.WriteLine("");

@@ -59,6 +59,22 @@ ORDER BY d.name;";
             return cnn;
         }
 
+        /// <summary>Users of a (just restored) database whose login does not exist on this server.</summary>
+        public List<string> ListOrphanedUsers(string database)
+        {
+            List<string> users = new List<string>();
+            using (SqlConnection cnn = OpenConnection(mDatabaseConfig))
+            using (SqlCommand cmd = new SqlCommand(RestorePreparation.OrphanedUsersSql(database), cnn))
+            using (SqlDataReader reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    users.Add(reader.GetString(0));
+                }
+            }
+            return users;
+        }
+
         /// <summary>The files of one database (logical name and type), for the manifest.</summary>
         public List<DatabaseFileInfo> ListFiles(string database)
         {

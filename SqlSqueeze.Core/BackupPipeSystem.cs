@@ -384,6 +384,11 @@ namespace SqlSqueeze.Core
                             WriteManifest(recorder, storage, storageConfig, databaseConfig, pipelineConfig);
                         }
 
+                        if (!isBackup && RestorePreparation.ShouldReportOrphans(databaseConfig.Parameters))
+                        {
+                            AddOrphanedUserWarning(stats, databaseConfig);
+                        }
+
                         stats.Elapsed = elapsed.Elapsed;
                     }
                 }
@@ -399,6 +404,26 @@ namespace SqlSqueeze.Core
         }
 
 
+
+        // The restore itself worked, so a failed check is a warning, never a failure.
+        private static void AddOrphanedUserWarning(BackupStats stats, ConfigPair databaseConfig)
+        {
+            string database = FirstValue(databaseConfig.Parameters, "database", string.Empty);
+            try
+            {
+                List<string> orphans = new SqlDatabaseCatalog(databaseConfig).ListOrphanedUsers(database);
+                if (orphans.Count > 0)
+                {
+                    stats.Warnings.Add(string.Format(
+                        "{0} has {1} orphaned user(s) that no login on this server matches (logins are matched by SID, not by name): {2}. Fix each with ALTER USER <user> WITH LOGIN = <login> in {0}; the login must exist.",
+                        database, orphans.Count, string.Join(", ", orphans)));
+                }
+            }
+            catch (Exception e)
+            {
+                stats.Warnings.Add("could not check for orphaned users: " + e.Message);
+            }
+        }
 
         // A finished backup is already safely stored, so a manifest that cannot
         // be written is reported on stderr (stdout carries the --json result)
