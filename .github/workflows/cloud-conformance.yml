@@ -12,7 +12,7 @@ name: Cloud conformance
 
 on:
   push:
-    branches: [master]
+    branches: [master, cloud-conformance]
   pull_request:
   schedule:
     - cron: '41 5 * * 1'
