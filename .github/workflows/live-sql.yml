@@ -8,7 +8,7 @@ name: Live SQL Server
 
 on:
   push:
-    branches: [master, live-ci, live-windows]
+    branches: [master]
   pull_request:
   schedule:
     # Weekly, so a new SQL Server build or a change in Microsoft's packages shows up
@@ -80,7 +80,7 @@ jobs:
           sudo journalctl -u mssql-server --no-pager | tail -n 40 || true
 
   windows:
-    name: SQL Server 2022 Express on Windows
+    name: SQL Server Express (current) on Windows
     runs-on: windows-latest
     timeout-minutes: 45
     env:
@@ -97,7 +97,7 @@ jobs:
 
       # Express is free and has the same VDI as every other edition. The default
       # instance, with SQL logins on, so `localhost` and sa work as on Linux.
-      - name: Install SQL Server 2022 Express
+      - name: Install SQL Server Express (whatever Microsoft's current download is: 2025 at the time of writing)
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP 'sqlsetup'

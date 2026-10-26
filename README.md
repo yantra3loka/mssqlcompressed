@@ -348,8 +348,11 @@ setups DBAs already run); anything that only works untested.
   natively, run 25 end-to-end checks (`tools/live-test/live.sh`: backup
   types, restore, `verify --sql`, `test-restore`, `unpack`, `restore-chain`,
   `backup-all`). The first run found that SQL Server 2025 on Linux could not take
-  a backup (`undefined symbol: uuid_generate`); the shim now links libuuid. Not
-  covered: SQL Server 2019, and Windows.
+  a backup (`undefined symbol: uuid_generate`); the shim now links libuuid. The
+  same 25 checks run on Windows too, against SQL Server 2025 Express (script run
+  under Git Bash; passed 25/25 on 2026-10-26), so the Windows build of these
+  commands is now tested against a real server on every change. Not covered: SQL
+  Server 2019, and Windows with older SQL Server versions.
 - Live against SQL Server 2022 on Linux (RTM-CU27, 16.0.4295.3,
   2026-10-26): **PASS**. A 20,000-row database backed up through the
   `native/linux` shim and restored (also with `MOVE` to a new database)
