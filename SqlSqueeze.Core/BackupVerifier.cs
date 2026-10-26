@@ -48,6 +48,25 @@ namespace SqlSqueeze.Core
         }
     }
 
+    /// <summary>The outcome of unpack: the native file(s) were written and match the manifest, or they were removed.</summary>
+    public class UnpackResult
+    {
+        private readonly VerifyResult mVerified;
+
+        internal UnpackResult(VerifyResult verified)
+        {
+            mVerified = verified;
+        }
+
+        public bool Ok { get { return mVerified.Ok; } }
+        public bool ManifestFound { get { return mVerified.ManifestFound; } }
+
+        /// <summary>Bytes of native backup written (the decoded size).</summary>
+        public long BytesWritten { get { return mVerified.RawBytes; } }
+
+        public List<string> Problems { get { return mVerified.Problems; } }
+    }
+
     /// <summary>
     /// Re-reads a backup through its pipeline (decrypt, decompress) without
     /// SQL Server, and compares sizes and SHA-256 hashes of the stored file
@@ -67,6 +86,15 @@ namespace SqlSqueeze.Core
 
         public static VerifyResult Verify(IBackupStorage storage, Dictionary<string, List<string>> storageParams, List<ConfigPair> pipeline, BackupManifest manifest)
         {
+            return Verify(storage, storageParams, pipeline, manifest, null);
+        }
+
+        /// <summary>
+        /// As above, and writes the decoded stream of file i to sinks[i] on the way
+        /// (that is what unpack does). The caller owns and disposes the sinks.
+        /// </summary>
+        internal static VerifyResult Verify(IBackupStorage storage, Dictionary<string, List<string>> storageParams, List<ConfigPair> pipeline, BackupManifest manifest, IList<Stream> sinks)
+        {
             VerifyResult result = new VerifyResult { ManifestFound = manifest != null };
             ManifestRecorder recorder = new ManifestRecorder();
             Stream[] files = null;
@@ -80,7 +108,9 @@ namespace SqlSqueeze.Core
                 {
                     try
                     {
-                        tops[i].CopyTo(Stream.Null);
+                        Stream sink = sinks == null ? Stream.Null : sinks[i];
+                        tops[i].CopyTo(sink);
+                        sink.Flush();
                     }
                     catch (Exception e)
                     {

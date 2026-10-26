@@ -98,6 +98,9 @@ namespace SqlSqueeze.Cli
                                     case "test-restore":
                                         PrintTestRestoreUsage();
                                         break;
+                                    case "unpack":
+                                        PrintUnpackUsage();
+                                        break;
                                     case "listplugins":
                                         Console.WriteLine("Lists the plugins available.  Go on, try it.");
                                         break;
@@ -155,7 +158,14 @@ namespace SqlSqueeze.Cli
 
                                     bool isBackup = false;
 
-                                    List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
+                                    List<string> restoreArgs = CopySubArgs(args);
+                                    bool fromManifest = restoreArgs.RemoveAll(a => a.Equals("--from-manifest", StringComparison.OrdinalIgnoreCase)) > 0;
+
+                                    List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(restoreArgs, isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
+                                    if (fromManifest)
+                                    {
+                                        pipelineConfig = PipelineFromManifest(storageConfig, pipelineConfig, pipelineComponents);
+                                    }
 
                                     CommandLineNotifier notifier = new CommandLineNotifier(false, !json);
 
@@ -171,6 +181,25 @@ namespace SqlSqueeze.Cli
                                 catch (Exception e)
                                 {
                                     HandleException(e, false, json);
+                                    return -1;
+                                }
+                            }
+                        case "unpack":
+                            {
+                                try
+                                {
+                                    return Unpack(args, json, pipelineComponents, storageComponents);
+                                }
+                                catch (Exception e)
+                                {
+                                    if (json)
+                                    {
+                                        PrintJsonError("unpack", InnermostMessage(e));
+                                    }
+                                    else
+                                    {
+                                        HandleException(e, false, false);
+                                    }
                                     return -1;
                                 }
                             }
@@ -222,12 +251,17 @@ namespace SqlSqueeze.Cli
                                     }
                                     // verify <storage> [pipeline...] [--sql "db(user=sa;passwordEnv=PW)"]
                                     string sqlSpec = null;
+                                    bool fromManifest = false;
                                     List<string> positional = new List<string>();
                                     for (int i = 1; i < args.Length; i++)
                                     {
                                         if (args[i].Equals("--sql", StringComparison.OrdinalIgnoreCase))
                                         {
                                             sqlSpec = NextArg(args, ref i, "--sql");
+                                        }
+                                        else if (args[i].Equals("--from-manifest", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            fromManifest = true;
                                         }
                                         else
                                         {
@@ -241,6 +275,10 @@ namespace SqlSqueeze.Cli
                                     string storageArg = StorageArgToPlugin(positional[0]);
                                     ConfigPair storageConfig = ConfigUtil.ParseComponentConfig(storageComponents, storageArg);
                                     List<ConfigPair> pipelineConfig = BuildPipelineFromString(positional.GetRange(1, positional.Count - 1), pipelineComponents);
+                                    if (fromManifest)
+                                    {
+                                        pipelineConfig = PipelineFromManifest(storageConfig, pipelineConfig, pipelineComponents);
+                                    }
                                     ConfigPair sqlConfig = sqlSpec == null ? null : ConfigUtil.ParseComponentConfig(databaseComponents, sqlSpec);
 
                                     VerifyResult verified = BackupPipeSystem.Verify(storageConfig, pipelineConfig, sqlConfig, new CommandLineNotifier(false, !json));
@@ -451,12 +489,91 @@ namespace SqlSqueeze.Cli
             return result.AllOk ? 0 : -1;
         }
 
+        // --from-manifest: the pipeline comes from the manifest next to the backup, so it must not also be typed.
+        private static List<ConfigPair> PipelineFromManifest(ConfigPair storageConfig, List<ConfigPair> typedPipeline, Dictionary<string, Type> pipelineComponents)
+        {
+            if (typedPipeline.Count > 0)
+            {
+                throw new ArgumentException("Give the pipeline on the command line or use --from-manifest, not both.");
+            }
+            BackupManifest manifest = BackupPipeSystem.ReadManifest(storageConfig);
+            if (manifest == null)
+            {
+                throw new ArgumentException("--from-manifest needs the manifest written next to the backup, and there is none here. Give the pipeline on the command line instead.");
+            }
+            return BuildPipelineFromString(manifest.PipelineSpecsForRestore(), pipelineComponents);
+        }
+
+        // sqlsqueeze unpack <storage> [pipeline...] <native-output> [--from-manifest]
+        private static int Unpack(string[] args, bool json, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> storageComponents)
+        {
+            bool fromManifest = false;
+            List<string> positional = new List<string>();
+            for (int i = 1; i < args.Length; i++)
+            {
+                if (args[i].Equals("--from-manifest", StringComparison.OrdinalIgnoreCase))
+                {
+                    fromManifest = true;
+                }
+                else
+                {
+                    positional.Add(args[i]);
+                }
+            }
+            if (positional.Count < 2)
+            {
+                throw new ArgumentException("Usage: sqlsqueeze unpack <storage> [pipeline...] <native-output> [--from-manifest] [--json]");
+            }
+
+            ConfigPair source = ConfigUtil.ParseComponentConfig(storageComponents, StorageArgToPlugin(positional[0]));
+            ConfigPair destination = ConfigUtil.ParseComponentConfig(storageComponents, StorageArgToPlugin(positional[positional.Count - 1]));
+            List<ConfigPair> pipelineConfig = BuildPipelineFromString(positional.GetRange(1, positional.Count - 2), pipelineComponents);
+            if (fromManifest)
+            {
+                pipelineConfig = PipelineFromManifest(source, pipelineConfig, pipelineComponents);
+            }
+
+            UnpackResult result = BackupPipeSystem.Unpack(source, pipelineConfig, destination);
+            if (json)
+            {
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    status = result.Ok ? "ok" : "error",
+                    operation = "unpack",
+                    manifestFound = result.ManifestFound,
+                    bytesWritten = result.BytesWritten,
+                    problems = result.Problems,
+                }));
+            }
+            else
+            {
+                foreach (string problem in result.Problems)
+                {
+                    Console.WriteLine("problem: " + problem);
+                }
+                if (!result.Ok)
+                {
+                    Console.WriteLine("Unpack FAILED; the output was removed.");
+                }
+                else if (result.ManifestFound)
+                {
+                    Console.WriteLine(string.Format("Unpacked {0} bytes; sizes and sha256 of the stored file and of the native output match the manifest.", result.BytesWritten));
+                }
+                else
+                {
+                    Console.WriteLine(string.Format("Unpacked {0} bytes. There was no manifest, so the output could not be compared with what was backed up.", result.BytesWritten));
+                }
+            }
+            return result.Ok ? 0 : -1;
+        }
+
         // sqlsqueeze test-restore <storage> [pipeline...] --db "db(...)" [--keep] [--physical-only]
         private static int TestRestore(string[] args, bool json, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> storageComponents)
         {
             string dbSpec = null;
             bool keep = false;
             bool physicalOnly = false;
+            bool fromManifest = false;
             List<string> positional = new List<string>();
             for (int i = 1; i < args.Length; i++)
             {
@@ -471,6 +588,9 @@ namespace SqlSqueeze.Cli
                     case "--physical-only":
                         physicalOnly = true;
                         break;
+                    case "--from-manifest":
+                        fromManifest = true;
+                        break;
                     default:
                         positional.Add(args[i]);
                         break;
@@ -483,6 +603,10 @@ namespace SqlSqueeze.Cli
 
             ConfigPair storageConfig = ConfigUtil.ParseComponentConfig(storageComponents, StorageArgToPlugin(positional[0]));
             List<ConfigPair> pipelineConfig = BuildPipelineFromString(positional.GetRange(1, positional.Count - 1), pipelineComponents);
+            if (fromManifest)
+            {
+                pipelineConfig = PipelineFromManifest(storageConfig, pipelineConfig, pipelineComponents);
+            }
             ConfigPair databaseConfig = ConfigUtil.ParseComponentConfig(databaseComponents, dbSpec);
 
             DateTime started = DateTime.UtcNow;
@@ -795,6 +919,7 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze backup-all");
             Console.WriteLine("\tsqlsqueeze verify");
             Console.WriteLine("\tsqlsqueeze test-restore");
+            Console.WriteLine("\tsqlsqueeze unpack");
             Console.WriteLine("\tsqlsqueeze listplugins");
             Console.WriteLine("\tsqlsqueeze helpplugin");
             Console.WriteLine("\tsqlsqueeze version");
@@ -836,6 +961,19 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("Append --json for one machine-readable result line.");
         }
 
+        private static void PrintUnpackUsage()
+        {
+            Console.WriteLine("To turn a SqlSqueeze backup back into the plain native .bak SQL Server wrote (no SQL");
+            Console.WriteLine("Server needed, and no lock-in to this tool):");
+            Console.WriteLine("\tsqlsqueeze unpack file:///backups/app.bak.zst.aes zstd \"aes(passwordEnv=KEY)\" file:///restore/app.bak");
+            Console.WriteLine("\tsqlsqueeze unpack file:///backups/app.bak.zst.aes file:///restore/app.bak --from-manifest");
+            Console.WriteLine("The storage comes first, the native output last, the same pipeline as restore between them");
+            Console.WriteLine("(or --from-manifest to take it from the manifest). Striped backups need one output file per");
+            Console.WriteLine("stripe. The output is checked against the manifest as it is written, and removed if");
+            Console.WriteLine("anything differs. It never overwrites an existing file or the source.");
+            Console.WriteLine("Append --json for one machine-readable result line.");
+        }
+
         private static void PrintTestRestoreUsage()
         {
             Console.WriteLine("To prove a full backup restores to a healthy database:");
@@ -847,6 +985,7 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("database name and file list), the SQL Server machine (on Linux the mssql user), and free");
             Console.WriteLine("disk space for a copy of the database. Only full backups. It refuses to start if a");
             Console.WriteLine("database with the scratch name exists, and only ever drops the one it created.");
+            Console.WriteLine("--from-manifest takes the pipeline from the manifest instead of the command line.");
             Console.WriteLine("--keep leaves the scratch database in place. --physical-only runs the faster");
             Console.WriteLine("DBCC CHECKDB ... PHYSICAL_ONLY. Exit code 0 when it restored and CHECKDB was clean.");
             Console.WriteLine("Append --json for one machine-readable result line.");
@@ -880,6 +1019,7 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("confirm the file decodes. Add --sql \"db(user=sa;passwordEnv=PW)\" to also have SQL Server");
             Console.WriteLine("read the whole backup (RESTORE VERIFYONLY through a virtual device, so it needs the");
             Console.WriteLine("SQL Server machine and, on Linux, the mssql user); skipped if the file already failed.");
+            Console.WriteLine("--from-manifest takes the pipeline from the manifest instead of the command line.");
             Console.WriteLine("Exit code 0 when verified, -1 otherwise.");
             Console.WriteLine("Append --json for one machine-readable result line.");
         }

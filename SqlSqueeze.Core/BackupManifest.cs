@@ -115,10 +115,34 @@ namespace SqlSqueeze.Core
                         spec.Append(';');
                     }
                     first = false;
-                    spec.Append(key).Append('=').Append(IsSecret(key) ? "***" : value);
+                    // ";;" is how a literal semicolon is written in a pipeline spec
+                    spec.Append(key).Append('=').Append(IsSecret(key) ? "***" : (value ?? string.Empty).Replace(";", ";;"));
                 }
             }
             return spec.Append(')').ToString();
+        }
+
+        /// <summary>
+        /// The pipeline stages as spec strings (name or name(key=value;...)) that can be
+        /// parsed and used to read this backup. Throws when a stage had a secret the
+        /// manifest, by design, did not keep: that stage must be given by hand.
+        /// </summary>
+        public List<string> PipelineSpecsForRestore()
+        {
+            List<string> specs = new List<string>();
+            foreach (string stage in Pipeline ?? new List<string>())
+            {
+                System.Text.RegularExpressions.Match secret = System.Text.RegularExpressions.Regex.Match(stage, @"([A-Za-z0-9_]+)=\*\*\*");
+                if (secret.Success)
+                {
+                    string name = stage.IndexOf('(') > 0 ? stage.Substring(0, stage.IndexOf('(')) : stage;
+                    throw new ArgumentException(string.Format(
+                        "The {0} stage was run with {1}=..., and a manifest never keeps secrets. Give the pipeline yourself (for {0}, use passwordEnv=<variable>) instead of --from-manifest.",
+                        name, secret.Groups[1].Value));
+                }
+                specs.Add(stage);
+            }
+            return specs;
         }
 
         private static bool IsSecret(string key)

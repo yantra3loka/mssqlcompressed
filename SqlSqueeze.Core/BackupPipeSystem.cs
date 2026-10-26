@@ -25,6 +25,7 @@ using System.Reflection;
 using System.IO;
 
 using SqlSqueeze.Plugins;
+using SqlSqueeze.Plugins.Storage;
 using VdiNet.VirtualBackupDevice;
 
 namespace SqlSqueeze.Core
@@ -59,6 +60,23 @@ namespace SqlSqueeze.Core
 
 
         /// <summary>
+        /// The manifest the storage keeps next to a backup, or null when there is none
+        /// (or the storage plugin does not keep manifests).
+        /// </summary>
+        public static BackupManifest ReadManifest(ConfigPair storageConfig)
+        {
+            IBackupStorage storage = storageConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
+            IManifestStorage manifests = storage as IManifestStorage;
+            if (manifests == null)
+            {
+                return null;
+            }
+            string json = manifests.ReadManifest(storageConfig.Parameters);
+            return json == null ? null : BackupManifest.FromJson(json);
+        }
+
+
+        /// <summary>
         /// Checks a stored backup without SQL Server: reads it back through the
         /// pipeline and compares with the manifest written next to it (when the
         /// storage keeps one).
@@ -66,16 +84,7 @@ namespace SqlSqueeze.Core
         public static VerifyResult Verify(ConfigPair storageConfig, List<ConfigPair> pipelineConfig)
         {
             IBackupStorage storage = storageConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
-            BackupManifest manifest = null;
-            IManifestStorage manifests = storage as IManifestStorage;
-            if (manifests != null)
-            {
-                string json = manifests.ReadManifest(storageConfig.Parameters);
-                if (json != null)
-                {
-                    manifest = BackupManifest.FromJson(json);
-                }
-            }
+            BackupManifest manifest = ReadManifest(storageConfig);
             return BackupVerifier.Verify(storage, storageConfig.Parameters, pipelineConfig, manifest);
         }
 
@@ -114,16 +123,7 @@ namespace SqlSqueeze.Core
         public static TestRestoreResult TestRestore(ConfigPair storageConfig, List<ConfigPair> pipelineConfig, ConfigPair databaseConfig, bool keep, bool physicalOnly, IUpdateNotification notifier)
         {
             IBackupStorage storage = storageConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
-            BackupManifest manifest = null;
-            IManifestStorage manifests = storage as IManifestStorage;
-            if (manifests != null)
-            {
-                string json = manifests.ReadManifest(storageConfig.Parameters);
-                if (json != null)
-                {
-                    manifest = BackupManifest.FromJson(json);
-                }
-            }
+            BackupManifest manifest = ReadManifest(storageConfig);
             return TestRestoreRunner.Run(manifest, new SqlTestRestoreHost(storageConfig, pipelineConfig, databaseConfig, notifier), keep, physicalOnly, DateTime.UtcNow);
         }
 
@@ -142,6 +142,99 @@ namespace SqlSqueeze.Core
                 parameters["database"] = new List<string> { databaseName };
             }
             return new ConfigPair { TransformationType = databaseConfig.TransformationType, Parameters = parameters };
+        }
+
+
+        /// <summary>
+        /// Converts a SqlSqueeze backup back to the plain native backup file(s) SQL Server
+        /// wrote, by running it through the pipeline and writing the decoded stream to the
+        /// destination storage, one destination file per source file. It is checked against
+        /// the manifest as it goes; on any problem the output is removed. The destination
+        /// must not be (or contain) the source, and a destination file that already exists
+        /// is never overwritten.
+        /// </summary>
+        public static UnpackResult Unpack(ConfigPair sourceConfig, List<ConfigPair> pipelineConfig, ConfigPair destinationConfig)
+        {
+            IBackupStorage source = sourceConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
+            IBackupStorage destination = destinationConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
+
+            int sourceFiles = source.GetNumberOfDevices(sourceConfig.Parameters);
+            int destinationFiles = destination.GetNumberOfDevices(destinationConfig.Parameters);
+            if (sourceFiles != destinationFiles)
+            {
+                throw new ArgumentException(string.Format("The source has {0} file(s) but the destination has {1}; give one destination file for each source file.", sourceFiles, destinationFiles));
+            }
+            if (SamePlace(sourceConfig, destinationConfig))
+            {
+                throw new ArgumentException("The destination is the same as the source; unpack writes a new file and never replaces the backup it reads.");
+            }
+            if (destination is LocalStorage)
+            {
+                foreach (string path in destinationConfig.Parameters["path"])
+                {
+                    if (File.Exists(path))
+                    {
+                        throw new ArgumentException(string.Format("{0} already exists; unpack will not overwrite it. Remove it or choose another name.", path));
+                    }
+                }
+            }
+
+            BackupManifest manifest = ReadManifest(sourceConfig);
+
+            Stream[] outputs = destination.GetBackupWriter(destinationConfig.Parameters);
+            VerifyResult verified;
+            try
+            {
+                verified = BackupVerifier.Verify(source, sourceConfig.Parameters, pipelineConfig, manifest, outputs);
+            }
+            finally
+            {
+                foreach (Stream output in outputs)
+                {
+                    try { output.Dispose(); } catch (Exception) { }
+                }
+            }
+            if (!verified.Ok)
+            {
+                destination.CleanupOnAbort();
+            }
+            return new UnpackResult(verified);
+        }
+
+        private static bool SamePlace(ConfigPair a, ConfigPair b)
+        {
+            if (a.TransformationType != b.TransformationType)
+            {
+                return false;
+            }
+            if (a.TransformationType == typeof(LocalStorage))
+            {
+                HashSet<string> first = new HashSet<string>();
+                foreach (string path in a.Parameters["path"])
+                {
+                    first.Add(Path.GetFullPath(path));
+                }
+                foreach (string path in b.Parameters["path"])
+                {
+                    if (first.Contains(Path.GetFullPath(path)))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            return string.Join(";", Describe(a)) == string.Join(";", Describe(b));
+        }
+
+        private static List<string> Describe(ConfigPair config)
+        {
+            List<string> parts = new List<string>();
+            foreach (KeyValuePair<string, List<string>> pair in config.Parameters)
+            {
+                parts.Add(pair.Key.ToLowerInvariant() + "=" + string.Join("|", pair.Value));
+            }
+            parts.Sort(StringComparer.Ordinal);
+            return parts;
         }
 
 
