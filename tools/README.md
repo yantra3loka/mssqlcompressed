@@ -127,7 +127,8 @@ queries for "latest per database" and "missing a fresh full".
   `problems` and exit `-1`. A backup it cannot test (no manifest, not a
   full backup, no file list) is a top-level `{status:"error", message}`.
   Cron: `sqlsqueeze-cron.sh test-restore file:///backups/app.bak.zst zstd --db "db(user=sa;passwordEnv=SQL_PW)"`.
-- `local` storage writes `<file>.manifest.json` beside each backup (database,
+- `local` storage writes `<file>.manifest.json` beside each backup, and `s3`
+  and `azure` write `<key>.manifest.json` as an object beside it (database,
   type, pipeline with secrets redacted, sizes and SHA-256, and for
-  backups of a database its files, so `test-restore` can place them) and
-  `prune` removes it with the backup.
+  backups of a database its files, so `test-restore` can place them);
+  `prune` removes it with the backup in every storage.

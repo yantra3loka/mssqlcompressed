@@ -51,11 +51,12 @@ database the first argument selects, instead of one command per database.
 
 ## Verifying a backup
 
-`backup` to `local` storage writes `<file>.manifest.json` next to the
-backup: database, backup type, the pipeline (secrets redacted; an
+`backup` writes `<file>.manifest.json` next to the backup (an object
+beside it in `s3` and `azure` storage): database, backup type, the
+database's files, the pipeline (secrets redacted; an
 `passwordEnv=` variable name is kept, never its value), and the size and
 SHA-256 of each file as stored and as SQL Server produced it. `prune`
-removes a manifest together with its backup.
+removes a manifest together with its backup, in every storage.
 
 `sqlsqueeze verify <storage> [pipeline...]` reads the file back through the
 pipeline (decrypt, decompress) and compares sizes and both hashes with the
@@ -73,9 +74,9 @@ cannot: a file that decodes cleanly but is not a valid backup. Add
 `;CHECKSUM` to the db options to also check page checksums; that only works
 on a backup taken with `checksum` (SQL Server refuses it otherwise).
 
-Without a manifest (`s3` and `azure` do not write one yet) the stream check
-can only confirm the file decodes, and says so, because corruption can
-decode cleanly (a flipped byte in a zstd file did).
+Without a manifest (backups from before manifests existed, or one that was
+deleted) the stream check can only confirm the file decodes, and says so,
+because corruption can decode cleanly (a flipped byte in a zstd file did).
 
 ## Test restores
 
@@ -200,24 +201,21 @@ write retry with backoff (`writeretries=`) on `local`, `s3` and `azure` ·
 `verify` (hashes, and `--sql` for SQL Server's own `RESTORE VERIFYONLY`) +
 backup manifests · `test-restore` (scratch restore + `DBCC CHECKDB`) ·
 `unpack` (back to a plain native `.bak`) and `--from-manifest` (no retyping the
-pipeline) · `backup-all` (many databases, full/diff/log planning).
+pipeline), for local, S3 and Azure storage · `backup-all` (many databases, full/diff/log planning).
 
 Still to do, in order:
 
-1. **Manifests for `s3` and `azure`.** The manifest, `verify`,
-   `test-restore`, `unpack` and `--from-manifest` all exist for `local`
-   storage only.
-2. **Broader live validation.** Windows is verified on SQL Server 2025
+1. **Broader live validation.** Windows is verified on SQL Server 2025
    Express and Linux on SQL Server 2022. Still to cover: 2016–2025 on
    both OSes, in CI.
-3. **Resumable transfers, copy queue, real-cloud testing.** Writes retry
+2. **Resumable transfers, copy queue, real-cloud testing.** Writes retry
    with backoff within a run, but nothing resumes an interrupted upload
    in a later run and there is no copy-to/log-copy queue (Redgate keeps
    retrying for up to 24 hours). S3 and Azure were tested against moto
    and Azurite only, not real cloud accounts.
-4. **Restore ergonomics.** Kill connections first, restore the latest
+3. **Restore ergonomics.** Kill connections first, restore the latest
    chain automatically, report orphaned users, restore from cloud.
-5. **Test restores of differential and log chains.** `test-restore` takes
+4. **Test restores of differential and log chains.** `test-restore` takes
    full backups only.
 
 Non-goals: a GUI (the engine + scripts + docs slot into the Ola/dbatools
@@ -310,6 +308,15 @@ setups DBAs already run); anything that only works untested.
   a corrupted copy failed and left no output behind. A backup made with a
   literal password has no secret in its manifest (0 occurrences) and
   `--from-manifest` refused it with a clear message.
+- Manifests for `s3` and `azure`, live against moto and Azurite
+  (2026-10-26): **PASS**. A `zstd` + `aes` backup of a SQL Server 2022
+  database written to each store left the backup and `<key>.manifest.json`
+  beside it. Against each store, `verify --from-manifest`, `verify
+  --from-manifest --sql`, `unpack --from-manifest` (the output restored with
+  plain `sqlcmd` to an identical row count and checksum), and
+  `test-restore --from-manifest` all passed with no pipeline typed, and
+  `prune` removed each backup together with its manifest. Real S3 and Azure
+  accounts have still not been tried.
 - **The VDI library prints an abort notice after the CLI's JSON line.**
   When SQL Server aborts a VDI operation, `libsqlvdi` writes a line like
   `Host_…_SQLVDIMemoryName_0: CVD::GetCommand: Abort bit is set` to stdout
