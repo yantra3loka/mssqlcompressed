@@ -46,12 +46,17 @@ failed=0
 
 sql() { "$SQLCMD" -C -S "$SQS_SERVER" -U sa -b -W -h -1 "$@"; }
 # VDI commands run as the mssql user (it shares memory with the server); the rest need no privileges.
-vdi() { sudo --preserve-env=SQS_PW,SQS_KEY -u mssql "$APP" "$@"; }
-plain() { "$APP" "$@"; }
+# stderr goes to a log that is printed when a check fails, so a failure says why.
+ERRLOG=$SQS_WORK/stderr.log
+vdi() { sudo --preserve-env=SQS_PW,SQS_KEY -u mssql "$APP" "$@" 2>> "$ERRLOG"; }
+plain() { "$APP" "$@" 2>> "$ERRLOG"; }
 last_json() { grep '^{' | tail -1; }
 
 ok() { passed=$((passed + 1)); echo "PASS: $1"; }
-bad() { failed=$((failed + 1)); echo "FAIL: $1"; [ -n "${2:-}" ] && echo "      $2"; }
+bad() {
+    failed=$((failed + 1)); echo "FAIL: $1"; [ -n "${2:-}" ] && echo "      $2"
+    if [ -s "$ERRLOG" ]; then echo "      stderr:"; tail -n 12 "$ERRLOG" | sed 's/^/        /'; : > "$ERRLOG"; fi
+}
 
 # expect <name> <json> <jq expression that must print true>
 expect() {
@@ -84,14 +89,14 @@ done
 SRC=$(stamp sqs_live_a)
 
 # ---- 1. full backup, manifest, verify (hashes and SQL Server's own check) ----
-out=$(vdi backup "db(database=sqs_live_a;user=sa;passwordEnv=SQS_PW)" zstd "$PIPE" "file://$SQS_WORK/bk/a.bak" --json 2> /dev/null | last_json)
+out=$(vdi backup "db(database=sqs_live_a;user=sa;passwordEnv=SQS_PW)" zstd "$PIPE" "file://$SQS_WORK/bk/a.bak" --json | last_json)
 expect "backup zstd+aes succeeds" "$out" '.status == "ok"'
 [ -f "$SQS_WORK/bk/a.bak.manifest.json" ] && ok "backup wrote a manifest" || bad "backup wrote a manifest"
 
-out=$(plain verify "file://$SQS_WORK/bk/a.bak" --from-manifest --json 2> /dev/null | last_json)
+out=$(plain verify "file://$SQS_WORK/bk/a.bak" --from-manifest --json | last_json)
 expect "verify --from-manifest passes" "$out" '.status == "ok" and .manifestFound == true'
 
-out=$(vdi verify "file://$SQS_WORK/bk/a.bak" --from-manifest --sql "$DBOPT" --json 2> /dev/null | last_json)
+out=$(vdi verify "file://$SQS_WORK/bk/a.bak" --from-manifest --sql "$DBOPT" --json | last_json)
 expect "verify --sql (RESTORE VERIFYONLY through VDI) passes" "$out" '.status == "ok" and .sqlChecked == true'
 
 cp "$SQS_WORK/bk/a.bak" "$SQS_WORK/bk/flip.bak" && cp "$SQS_WORK/bk/a.bak.manifest.json" "$SQS_WORK/bk/flip.bak.manifest.json" || bad "could not copy the backup to corrupt it"
@@ -102,30 +107,30 @@ b = bytearray(open(p, 'rb').read())
 b[len(b) // 2] ^= 1
 open(p, 'wb').write(b)
 EOF
-out=$(plain verify "file://$SQS_WORK/bk/flip.bak" --from-manifest --json 2> /dev/null | last_json)
+out=$(plain verify "file://$SQS_WORK/bk/flip.bak" --from-manifest --json | last_json)
 expect "verify rejects a backup with one flipped byte, naming the hash mismatch" "$out" '.status == "error" and (.problems | map(test("sha256")) | any)'
 
 # ---- 2. unpack to a native .bak and restore it with plain sqlcmd ----
-out=$(plain unpack "file://$SQS_WORK/bk/a.bak" "file://$SQS_WORK/native/a.bak" --from-manifest --json 2> /dev/null | last_json)
+out=$(plain unpack "file://$SQS_WORK/bk/a.bak" "file://$SQS_WORK/native/a.bak" --from-manifest --json | last_json)
 expect "unpack --from-manifest succeeds" "$out" '.status == "ok"'
 chmod 644 "$SQS_WORK/native/a.bak" 2> /dev/null
 sql -Q "SET NOCOUNT ON; RESTORE DATABASE sqs_live_native FROM DISK='$SQS_WORK/native/a.bak' WITH MOVE 'sqs_live_a' TO '/var/opt/mssql/data/sqs_live_native.mdf', MOVE 'sqs_live_a_log' TO '/var/opt/mssql/data/sqs_live_native_log.ldf'" > /dev/null 2>&1
 expect_eq "a plain native RESTORE of the unpacked file matches the source" "$(stamp sqs_live_native)" "$SRC"
 
 # ---- 3. restore through VDI with the pipeline taken from the manifest ----
-out=$(vdi restore "file://$SQS_WORK/bk/a.bak" "db(database=sqs_live_vdi;user=sa;passwordEnv=SQS_PW;MOVE='sqs_live_a'TO'/var/opt/mssql/data/sqs_live_vdi.mdf';MOVE='sqs_live_a_log'TO'/var/opt/mssql/data/sqs_live_vdi_log.ldf')" --from-manifest --json 2> /dev/null | last_json)
+out=$(vdi restore "file://$SQS_WORK/bk/a.bak" "db(database=sqs_live_vdi;user=sa;passwordEnv=SQS_PW;MOVE='sqs_live_a'TO'/var/opt/mssql/data/sqs_live_vdi.mdf';MOVE='sqs_live_a_log'TO'/var/opt/mssql/data/sqs_live_vdi_log.ldf')" --from-manifest --json | last_json)
 expect "restore --from-manifest succeeds" "$out" '.status == "ok"'
 expect_eq "the VDI-restored copy matches the source" "$(stamp sqs_live_vdi)" "$SRC"
 
 # ---- 4. test restore with DBCC CHECKDB ----
-out=$(vdi test-restore "file://$SQS_WORK/bk/a.bak" --from-manifest --db "$DBOPT" --json 2> /dev/null | last_json)
+out=$(vdi test-restore "file://$SQS_WORK/bk/a.bak" --from-manifest --db "$DBOPT" --json | last_json)
 expect "test-restore passes and drops its scratch database" "$out" '.status == "ok" and .dropped == true'
 expect_eq "no scratch database is left behind" "$(sql -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.databases WHERE name LIKE 'sqs_testrestore%'")" "0"
 
 # ---- 5. a chain: full + differential + logs, restored automatically, and to a point in time ----
 mkdir -p "$SQS_WORK/bk/chain" && chmod 777 "$SQS_WORK/bk/chain"   # the mssql user writes the backups here
 ins() { sql -d sqs_live_b -Q "SET NOCOUNT ON; INSERT INTO t(v) SELECT TOP 3000 '$1' FROM sys.all_objects a CROSS JOIN sys.all_objects b;"; }
-bkb() { vdi backup "db(database=sqs_live_b;user=sa;passwordEnv=SQS_PW;backuptype=$1)" zstd "$PIPE" "file://$SQS_WORK/bk/chain/b_$2.bak" --json 2> /dev/null | last_json; sleep 1.3; }
+bkb() { vdi backup "db(database=sqs_live_b;user=sa;passwordEnv=SQS_PW;backuptype=$1)" zstd "$PIPE" "file://$SQS_WORK/bk/chain/b_$2.bak" --json | last_json; sleep 1.3; }
 ins b1; out=$(bkb full 1full);          expect "chain: full backup" "$out" '.status == "ok"'
 ins b2; out=$(bkb differential 2diff);  expect "chain: differential backup" "$out" '.status == "ok"'
 ins b3; out=$(bkb log 3log);            expect "chain: first log backup" "$out" '.status == "ok"'
@@ -133,29 +138,29 @@ ins b4; sleep 1.3; MID=$(sql -Q "SET NOCOUNT ON; SELECT CONVERT(VARCHAR(23), SYS
 ins b5; out=$(bkb log 4log);            expect "chain: second log backup" "$out" '.status == "ok"'
 SRCB=$(stamp sqs_live_b)
 
-out=$(plain restore-chain "$SQS_WORK/bk/chain" sqs_live_b --db "$DBOPT" --as sqs_live_chain --dry-run --json 2> /dev/null | last_json)
+out=$(plain restore-chain "$SQS_WORK/bk/chain" sqs_live_b --db "$DBOPT" --as sqs_live_chain --dry-run --json | last_json)
 expect "restore-chain --dry-run plans four steps in order" "$out" '[.steps[].backupType] == ["full","differential","log","log"]'
-out=$(vdi restore-chain "$SQS_WORK/bk/chain" sqs_live_b --db "$DBOPT" --as sqs_live_chain --json 2> /dev/null | last_json)
+out=$(vdi restore-chain "$SQS_WORK/bk/chain" sqs_live_b --db "$DBOPT" --as sqs_live_chain --json | last_json)
 expect "restore-chain restores the whole chain" "$out" '.status == "ok" and ([.steps[].status] | all(. == "ok"))'
 expect_eq "the chain-restored database matches the source" "$(stamp sqs_live_chain)" "$SRCB"
-out=$(vdi restore-chain "$SQS_WORK/bk/chain" sqs_live_b --db "$DBOPT" --as sqs_live_pit --stopat "$MID" --json 2> /dev/null | last_json)
+out=$(vdi restore-chain "$SQS_WORK/bk/chain" sqs_live_b --db "$DBOPT" --as sqs_live_pit --stopat "$MID" --json | last_json)
 expect "restore-chain --stopat restores" "$out" '.status == "ok"'
 expect_eq "point in time has exactly the rows that existed then" "$(sql -d sqs_live_pit -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM t")" "$MIDROWS"
 
 # ---- 6. backup-all with per-database paths and --copy-to ----
-out=$(vdi backup-all "sqs_live_a,sqs_live_b" zstd "$PIPE" "local(path=$SQS_WORK/bk/all/{database}/{database}_{backuptype}.bak)" --db "$DBOPT" --copy-to "local(path=$SQS_WORK/mirror/{database}/{database}.bak)" --json 2> /dev/null | last_json)
+out=$(vdi backup-all "sqs_live_a,sqs_live_b" zstd "$PIPE" "local(path=$SQS_WORK/bk/all/{database}/{database}_{backuptype}.bak)" --db "$DBOPT" --copy-to "local(path=$SQS_WORK/mirror/{database}/{database}.bak)" --json | last_json)
 expect "backup-all backs up both databases and copies each" "$out" '.status == "ok" and ([.results[].status] == ["ok","ok"]) and ([.results[].copies[].status] == ["ok","ok"])'
-out=$(plain verify "file://$SQS_WORK/mirror/sqs_live_a/sqs_live_a.bak" --from-manifest --json 2> /dev/null | last_json)
+out=$(plain verify "file://$SQS_WORK/mirror/sqs_live_a/sqs_live_a.bak" --from-manifest --json | last_json)
 expect "the --copy-to copy verifies from its own manifest" "$out" '.status == "ok"'
 
 # ---- 7. restore over a database that is in use ----
 ( sql -d sqs_live_a -Q "WAITFOR DELAY '00:00:40'" > /dev/null 2>&1 & )
 sleep 2
-out=$(vdi restore "file://$SQS_WORK/bk/a.bak" "db(database=sqs_live_a;user=sa;passwordEnv=SQS_PW;REPLACE)" --from-manifest --json 2> /dev/null | last_json)
+out=$(vdi restore "file://$SQS_WORK/bk/a.bak" "db(database=sqs_live_a;user=sa;passwordEnv=SQS_PW;REPLACE)" --from-manifest --json | last_json)
 expect "restore over an in-use database fails without --kill-connections" "$out" '.status == "error"'
 ( sql -d sqs_live_a -Q "WAITFOR DELAY '00:00:40'" > /dev/null 2>&1 & )
 sleep 2
-out=$(vdi restore "file://$SQS_WORK/bk/a.bak" "db(database=sqs_live_a;user=sa;passwordEnv=SQS_PW;REPLACE)" --from-manifest --kill-connections --json 2> /dev/null | last_json)
+out=$(vdi restore "file://$SQS_WORK/bk/a.bak" "db(database=sqs_live_a;user=sa;passwordEnv=SQS_PW;REPLACE)" --from-manifest --kill-connections --json | last_json)
 expect "restore --kill-connections succeeds" "$out" '.status == "ok"'
 expect_eq "the database is multi-user afterwards" "$(sql -Q "SET NOCOUNT ON; SELECT user_access_desc FROM sys.databases WHERE name='sqs_live_a'")" "MULTI_USER"
 
