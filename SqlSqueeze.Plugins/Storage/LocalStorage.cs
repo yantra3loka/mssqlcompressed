@@ -274,6 +274,16 @@ write/flush errors are retried.
             return names;
         }
 
+        public Dictionary<string, List<string>> ResolveConfig(Dictionary<string, List<string>> config)
+        {
+            Dictionary<string, List<string>> resolved = StorageConfigs.Clone(config);
+            if (mFileInfosToDeleteOnAbort.Count > 0)
+            {
+                resolved["path"] = mFileInfosToDeleteOnAbort.ConvertAll(f => f.FullName);
+            }
+            return resolved;
+        }
+
         public void WriteManifest(Dictionary<string, List<string>> config, string json)
         {
             File.WriteAllText(ManifestPath(config), json);

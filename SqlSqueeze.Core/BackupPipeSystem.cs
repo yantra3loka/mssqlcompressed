@@ -49,13 +49,24 @@ namespace SqlSqueeze.Core
 
         public static BackupStats Backup(ConfigPair databaseConfig, List<ConfigPair> pipelineConfig, ConfigPair storageConfig, IUpdateNotification updateNotifier)
         {
-            return BackupOrRestore(true, storageConfig, databaseConfig, pipelineConfig, updateNotifier);
+            return BackupOrRestore(true, storageConfig, databaseConfig, pipelineConfig, updateNotifier, null, null);
+        }
+
+        /// <summary>
+        /// Backs up, then copies the finished backup and its manifest to each destination (retrying
+        /// as copy does). The backup stands on its own: a copy that fails is reported in
+        /// stats.CopyProblems and never turns a good backup into an exception.
+        /// </summary>
+        public static BackupStats Backup(ConfigPair databaseConfig, List<ConfigPair> pipelineConfig, ConfigPair storageConfig, IUpdateNotification updateNotifier,
+            IList<ConfigPair> copyTo, CopyOptions copyOptions)
+        {
+            return BackupOrRestore(true, storageConfig, databaseConfig, pipelineConfig, updateNotifier, copyTo, copyOptions);
         }
 
 
         public static BackupStats Restore(ConfigPair storageConfig, List<ConfigPair> pipelineConfig, ConfigPair databaseConfig, IUpdateNotification updateNotifier)
         {
-            return BackupOrRestore(false, storageConfig, databaseConfig, pipelineConfig, updateNotifier);
+            return BackupOrRestore(false, storageConfig, databaseConfig, pipelineConfig, updateNotifier, null, null);
         }
 
 
@@ -362,7 +373,8 @@ namespace SqlSqueeze.Core
 
 
 
-        private static BackupStats BackupOrRestore(bool isBackup, ConfigPair storageConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig, IUpdateNotification updateNotifier)
+        private static BackupStats BackupOrRestore(bool isBackup, ConfigPair storageConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig, IUpdateNotification updateNotifier,
+            IList<ConfigPair> copyTo, CopyOptions copyOptions)
         {
             System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
             BackupStats stats = new BackupStats();
@@ -501,6 +513,11 @@ namespace SqlSqueeze.Core
                             AddOrphanedUserWarning(stats, databaseConfig);
                         }
 
+                        if (isBackup && copyTo != null && copyTo.Count > 0)
+                        {
+                            CopyBackupTo(storage, storageConfig, copyTo, copyOptions ?? new CopyOptions(), stats);
+                        }
+
                         stats.Elapsed = elapsed.Elapsed;
                     }
                 }
@@ -516,6 +533,66 @@ namespace SqlSqueeze.Core
         }
 
 
+
+        /// <summary>
+        /// Copies the backup just taken, found by the names its storage really used (date tokens
+        /// already expanded), and its manifest, to each destination. Each destination is tried
+        /// whatever happens to the others, and nothing here throws: the backup already succeeded.
+        /// </summary>
+        internal static void CopyBackupTo(IBackupStorage usedStorage, ConfigPair storageConfig, IList<ConfigPair> copyTo, CopyOptions options, BackupStats stats)
+        {
+            if (copyTo == null || copyTo.Count == 0)
+            {
+                return;
+            }
+
+            IManifestStorage manifests = usedStorage as IManifestStorage;
+            ConfigPair source = new ConfigPair
+            {
+                TransformationType = storageConfig.TransformationType,
+                Parameters = manifests != null ? manifests.ResolveConfig(storageConfig.Parameters) : storageConfig.Parameters,
+            };
+
+            foreach (ConfigPair destination in copyTo)
+            {
+                CopyOutcome outcome = new CopyOutcome { Destination = DescribeDestination(destination) };
+                stats.Copies.Add(outcome);
+                try
+                {
+                    CopyResult result = Copy(source, destination, options);
+                    outcome.Ok = result.Ok;
+                    outcome.Attempts = result.Attempts;
+                    outcome.BytesCopied = result.BytesCopied;
+                    outcome.BytesSkipped = result.BytesSkipped;
+                    outcome.Problems.AddRange(result.Problems);
+                }
+                catch (Exception e)
+                {
+                    outcome.Ok = false;
+                    outcome.Problems.Add(ErrorText.Innermost(e));
+                }
+                foreach (string problem in outcome.Problems)
+                {
+                    stats.CopyProblems.Add(string.Format("copy to {0}: {1}", outcome.Destination, problem));
+                }
+            }
+        }
+
+        /// <summary>The plugin name and where it points (path, bucket and key, container and blob), never a secret.</summary>
+        internal static string DescribeDestination(ConfigPair storage)
+        {
+            IBackupPlugin plugin = storage.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupPlugin;
+            List<string> parts = new List<string>();
+            foreach (string key in new[] { "endpoint", "bucket", "container", "path", "key", "blob" })
+            {
+                List<string> values;
+                if (storage.Parameters.TryGetValue(key, out values))
+                {
+                    parts.Add(key + "=" + string.Join(",", values));
+                }
+            }
+            return plugin.Name + "(" + string.Join(";", parts) + ")";
+        }
 
         // The restore itself worked, so a failed check is a warning, never a failure.
         private static void AddOrphanedUserWarning(BackupStats stats, ConfigPair databaseConfig)

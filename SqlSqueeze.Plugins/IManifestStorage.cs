@@ -19,6 +19,19 @@ using System.Collections.Generic;
 
 namespace SqlSqueeze.Plugins
 {
+    internal static class StorageConfigs
+    {
+        public static Dictionary<string, List<string>> Clone(Dictionary<string, List<string>> config)
+        {
+            Dictionary<string, List<string>> copy = new Dictionary<string, List<string>>(config.Comparer);
+            foreach (KeyValuePair<string, List<string>> pair in config)
+            {
+                copy[pair.Key] = new List<string>(pair.Value);
+            }
+            return copy;
+        }
+    }
+
     /// <summary>
     /// Optional storage capability: keep a small JSON manifest (what was
     /// backed up, which pipeline, sizes and checksums) next to the backup
@@ -32,6 +45,14 @@ namespace SqlSqueeze.Plugins
         /// tokens already expanded by the last GetBackupWriter call.
         /// </summary>
         IList<string> GetFileNames(Dictionary<string, List<string>> config);
+
+        /// <summary>
+        /// The config with date tokens (and anything else the writer expanded) replaced by the names
+        /// the last GetBackupWriter call actually used, so a later step, such as copying the backup
+        /// elsewhere, finds the files rather than re-expanding the tokens a moment later. Before
+        /// anything was written it is just a copy of the config.
+        /// </summary>
+        Dictionary<string, List<string>> ResolveConfig(Dictionary<string, List<string>> config);
 
         void WriteManifest(Dictionary<string, List<string>> config, string json);
 

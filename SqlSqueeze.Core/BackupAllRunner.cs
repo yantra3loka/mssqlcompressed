@@ -33,16 +33,19 @@ namespace SqlSqueeze.Core
 
         public string Message { get; set; }
         public BackupStats Stats { get; set; }
+
+        /// <summary>What went wrong copying this backup elsewhere (--copy-to). The backup itself is fine.</summary>
+        public List<string> CopyProblems { get; } = new List<string>();
     }
 
     public class BackupAllResult
     {
         public List<BackupAllItem> Items { get; } = new List<BackupAllItem>();
 
-        /// <summary>True when no database failed. Skipped databases are not failures.</summary>
+        /// <summary>True when no database failed and no copy failed. Skipped databases are not failures.</summary>
         public bool AllOk
         {
-            get { return !Items.Exists(i => i.Status == "error"); }
+            get { return !Items.Exists(i => i.Status == "error" || i.CopyProblems.Count > 0); }
         }
     }
 
@@ -55,7 +58,7 @@ namespace SqlSqueeze.Core
     {
         public static BackupAllResult Run(IDatabaseCatalog catalog, string databasesSpec, string requestedType, bool changeBackupType,
             ConfigPair databaseTemplate, List<ConfigPair> pipeline, ConfigPair storageTemplate,
-            Func<ConfigPair, List<ConfigPair>, ConfigPair, BackupStats> backup)
+            Func<ConfigPair, List<ConfigPair>, ConfigPair, BackupStats> backup, IList<ConfigPair> copyTo = null)
         {
             List<DatabaseInfo> selected = DatabaseSelector.Select(catalog.List(), databasesSpec);
             if (selected.Count == 0)
@@ -72,6 +75,16 @@ namespace SqlSqueeze.Core
             if (selected.Count > 1 && !HasToken(storageTemplate, "{database}"))
             {
                 throw new ArgumentException("Several databases would be written to the same place. Put {database} in the storage path, for example local(path=/backups/{database}/{database}_{backuptype}_{yyyyMMdd_HHmmss}.bak).");
+            }
+            if (copyTo != null && selected.Count > 1)
+            {
+                foreach (ConfigPair destination in copyTo)
+                {
+                    if (!HasToken(destination, "{database}"))
+                    {
+                        throw new ArgumentException("Several databases would be copied to the same place. Put {database} in each --copy-to storage path too, for example local(path=/mirror/{database}/{database}_{backuptype}.bak).");
+                    }
+                }
             }
             RejectDuplicatePaths(plans, storageTemplate);
 
@@ -92,6 +105,10 @@ namespace SqlSqueeze.Core
                     item.Stats = backup(WithDatabase(databaseTemplate, plan), pipeline, WithTokens(storageTemplate, plan));
                     item.Status = "ok";
                     item.Message = plan.Reason;
+                    if (item.Stats != null)
+                    {
+                        item.CopyProblems.AddRange(item.Stats.CopyProblems);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -112,6 +129,12 @@ namespace SqlSqueeze.Core
 
         private static ConfigPair WithTokens(ConfigPair template, BackupPlan plan)
         {
+            return ExpandTokens(template, plan.Database, plan.BackupType);
+        }
+
+        /// <summary>A copy of the config with {database} and {backuptype} replaced in every parameter (the database name made safe for a file name).</summary>
+        public static ConfigPair ExpandTokens(ConfigPair template, string database, string backupType)
+        {
             ConfigPair copy = Copy(template);
             foreach (string key in new List<string>(copy.Parameters.Keys))
             {
@@ -119,8 +142,8 @@ namespace SqlSqueeze.Core
                 for (int i = 0; i < values.Count; i++)
                 {
                     values[i] = values[i]
-                        .Replace("{database}", SafeFileName(plan.Database))
-                        .Replace("{backuptype}", plan.BackupType);
+                        .Replace("{database}", SafeFileName(database))
+                        .Replace("{backuptype}", backupType);
                 }
             }
             return copy;

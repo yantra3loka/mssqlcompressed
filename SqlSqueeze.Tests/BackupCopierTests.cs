@@ -78,6 +78,8 @@ namespace SqlSqueeze.Tests
                 return config["path"].Select(p => Path.GetFileName(p)).ToList();
             }
 
+            public Dictionary<string, List<string>> ResolveConfig(Dictionary<string, List<string>> config) { return config; }
+
             public void WriteManifest(Dictionary<string, List<string>> config, string json)
             {
                 if (FailManifestWith != null) { throw FailManifestWith; }

@@ -252,6 +252,16 @@ namespace SqlSqueeze.Plugins.Storage
             return names;
         }
 
+        public Dictionary<string, List<string>> ResolveConfig(Dictionary<string, List<string>> config)
+        {
+            Dictionary<string, List<string>> resolved = StorageConfigs.Clone(config);
+            if (mWrittenKeys.Count > 0)
+            {
+                resolved["key"] = new List<string>(mWrittenKeys);
+            }
+            return resolved;
+        }
+
         public void WriteManifest(Dictionary<string, List<string>> config, string json)
         {
             ParameterInfo.ValidateParams(mBackupParamSchema, config);

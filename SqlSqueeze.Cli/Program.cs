@@ -135,13 +135,16 @@ namespace SqlSqueeze.Cli
                                     ConfigPair databaseConfig;
                                     bool isBackup = true;
 
-                                    List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(CopySubArgs(args), isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
+                                    List<string> backupArgs = CopySubArgs(args);
+                                    List<ConfigPair> copyTo = ExtractCopyTo(backupArgs, storageComponents, out CopyOptions copyOptions);
+
+                                    List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(backupArgs, isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
 
                                     CommandLineNotifier notifier = new CommandLineNotifier(true, !json);
 
-                                    BackupStats stats = BackupPipeSystem.Backup(databaseConfig, pipelineConfig, storageConfig, notifier);
+                                    BackupStats stats = BackupPipeSystem.Backup(databaseConfig, pipelineConfig, storageConfig, notifier, copyTo, copyOptions);
                                     PrintSuccess("backup", stats, json);
-                                    return 0;
+                                    return stats.CopyProblems.Count == 0 ? 0 : -1;
                                 }
                                 catch (ParallelExecutionException ee)
                                 {
@@ -454,6 +457,77 @@ namespace SqlSqueeze.Cli
         }
 
 
+        // --copy-to <storage> (repeatable), --copy-max-hours, --copy-backoff-seconds: taken out of the argument
+        // list, wherever they are, before the positional arguments are read.
+        private static List<ConfigPair> ExtractCopyTo(List<string> args, Dictionary<string, Type> storageComponents, out CopyOptions options)
+        {
+            List<ConfigPair> destinations = new List<ConfigPair>();
+            double maxHours = 24;
+            double backoffSeconds = 5;
+            for (int i = 0; i < args.Count; )
+            {
+                string flag = args[i].ToLowerInvariant();
+                if (flag != "--copy-to" && flag != "--copy-max-hours" && flag != "--copy-backoff-seconds")
+                {
+                    i++;
+                    continue;
+                }
+                if (i + 1 >= args.Count)
+                {
+                    throw new ArgumentException(string.Format("{0} needs a value.", args[i]));
+                }
+                string value = args[i + 1];
+                if (flag == "--copy-to")
+                {
+                    destinations.Add(ConfigUtil.ParseComponentConfig(storageComponents, StorageArgToPlugin(value)));
+                }
+                else if (flag == "--copy-max-hours")
+                {
+                    maxHours = ParseNumber(value, "--copy-max-hours");
+                }
+                else
+                {
+                    backoffSeconds = ParseNumber(value, "--copy-backoff-seconds");
+                }
+                args.RemoveRange(i, 2);
+            }
+            options = new CopyOptions { MaxDuration = TimeSpan.FromHours(maxHours), BackoffBase = TimeSpan.FromSeconds(backoffSeconds) };
+            return destinations;
+        }
+
+        private static object CopyJson(CopyOutcome c)
+        {
+            return new
+            {
+                destination = c.Destination,
+                status = c.Ok ? "ok" : "error",
+                attempts = c.Attempts,
+                bytesCopied = c.BytesCopied,
+                bytesSkipped = c.BytesSkipped,
+                problems = c.Problems,
+            };
+        }
+
+        private static void PrintCopies(BackupStats stats)
+        {
+            foreach (CopyOutcome copy in stats.Copies)
+            {
+                if (copy.Ok)
+                {
+                    Console.WriteLine(string.Format("copied to {0}: {1} bytes ({2} attempt(s)){3}", copy.Destination, copy.BytesCopied, copy.Attempts,
+                        copy.BytesSkipped > 0 ? string.Format(", {0} bytes already there were not sent again", copy.BytesSkipped) : string.Empty));
+                }
+                else
+                {
+                    Console.WriteLine(string.Format("copy to {0} FAILED: {1}", copy.Destination, string.Join("; ", copy.Problems)));
+                }
+            }
+            if (stats.CopyProblems.Count > 0)
+            {
+                Console.WriteLine("The backup itself succeeded. Run 'sqlsqueeze copy <source> <destination>' to retry the copy.");
+            }
+        }
+
         private static void PrintSuccess(string operation, BackupStats stats, bool json)
         {
             if (json)
@@ -467,6 +541,8 @@ namespace SqlSqueeze.Cli
                     elapsedSeconds = stats.Elapsed.TotalSeconds,
                     mbPerSecond = stats.MegaBytesPerSecond,
                     warnings = stats.Warnings,
+                    copies = stats.Copies.ConvertAll(CopyJson),
+                    copyProblems = stats.CopyProblems,
                 }));
             }
             else
@@ -478,6 +554,7 @@ namespace SqlSqueeze.Cli
                 {
                     Console.WriteLine("warning: " + warning);
                 }
+                PrintCopies(stats);
             }
         }
 
@@ -497,6 +574,10 @@ namespace SqlSqueeze.Cli
             string dbSpec = "db";
             string type = "full";
             bool changeBackupType = true;
+            List<string> allArgs = new List<string>(args);
+            allArgs.RemoveAt(0);
+            List<ConfigPair> copyTo = ExtractCopyTo(allArgs, storageComponents, out CopyOptions copyOptions);
+            args = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Concat(new[] { args[0] }, allArgs));
             List<string> positional = new List<string>();
             for (int i = 1; i < args.Length; i++)
             {
@@ -533,12 +614,20 @@ namespace SqlSqueeze.Cli
                 databaseConfig, pipelineConfig, storageConfig,
                 (db, pipe, storage) =>
                 {
+                    string database = db.Parameters["database"][0];
+                    string backupType = db.Parameters["backuptype"][0];
                     if (!json)
                     {
-                        Console.WriteLine(string.Format("=== {0} ({1})", db.Parameters["database"][0], db.Parameters["backuptype"][0]));
+                        Console.WriteLine(string.Format("=== {0} ({1})", database, backupType));
                     }
-                    return BackupPipeSystem.Backup(db, pipe, storage, new CommandLineNotifier(true, !json));
-                });
+                    List<ConfigPair> copies = copyTo.ConvertAll(c => BackupAllRunner.ExpandTokens(c, database, backupType));
+                    BackupStats stats = BackupPipeSystem.Backup(db, pipe, storage, new CommandLineNotifier(true, !json), copies, copyOptions);
+                    if (!json)
+                    {
+                        PrintCopies(stats);
+                    }
+                    return stats;
+                }, copyTo);
             PrintBackupAllResult(result, json);
             return result.AllOk ? 0 : -1;
         }
@@ -944,6 +1033,8 @@ namespace SqlSqueeze.Cli
                         message = i.Message,
                         bytesProcessed = i.Stats == null ? (long?)null : i.Stats.BytesProcessed,
                         elapsedSeconds = i.Stats == null ? (double?)null : i.Stats.Elapsed.TotalSeconds,
+                        copies = i.Stats == null ? null : i.Stats.Copies.ConvertAll(CopyJson),
+                        copyProblems = i.CopyProblems,
                     }),
                 }));
                 return;
@@ -952,8 +1043,9 @@ namespace SqlSqueeze.Cli
             Console.WriteLine();
             foreach (BackupAllItem item in result.Items)
             {
-                Console.WriteLine(string.Format("{0,-8} {1} ({2}){3}", item.Status.ToUpperInvariant(), item.Database, item.BackupType,
-                    string.IsNullOrEmpty(item.Message) ? string.Empty : ": " + item.Message));
+                Console.WriteLine(string.Format("{0,-8} {1} ({2}){3}{4}", item.Status.ToUpperInvariant(), item.Database, item.BackupType,
+                    string.IsNullOrEmpty(item.Message) ? string.Empty : ": " + item.Message,
+                    item.CopyProblems.Count == 0 ? string.Empty : " -- COPY FAILED: " + string.Join("; ", item.CopyProblems)));
             }
             Console.WriteLine(result.AllOk ? "All requested backups completed." : "Some backups FAILED.");
         }
@@ -1209,6 +1301,12 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("To compress the backup file using gzip:");
             Console.WriteLine("\tsqlsqueeze backup [model] gzip file:///c:\\model.bak.gz");
             Console.WriteLine("");
+            Console.WriteLine("To copy the finished backup (and its manifest) elsewhere straight after, add one or more");
+            Console.WriteLine("--copy-to <storage>, for example a second disk, S3 or Azure:");
+            Console.WriteLine("\tsqlsqueeze backup [model] zstd file:///backups/model_{yyyyMMdd}.bak.zst --copy-to \"s3(...)\"");
+            Console.WriteLine("The copy retries through outages like 'sqlsqueeze copy' (--copy-max-hours, --copy-backoff-seconds).");
+            Console.WriteLine("If a copy fails the backup still stands, the failure is reported and the exit code is -1.");
+            Console.WriteLine("");
             Console.WriteLine("For more information on the different pipline options, type sqlsqueeze listplugins");
             Console.WriteLine("Append --json for one machine-readable result line (exit code still 0/-1).");
         }
@@ -1283,6 +1381,9 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("--db gives the db plugin's login/instance options (no database=). --type full|diff|log");
             Console.WriteLine("(default full). A diff or log backup that cannot be taken yet (no full backup to build on)");
             Console.WriteLine("becomes a full backup unless --no-fallback; log backups of SIMPLE-recovery databases and");
+            Console.WriteLine("--copy-to <storage> (repeatable) copies each backup elsewhere right after it is taken; put");
+            Console.WriteLine("{database} in its path when several databases are selected. A failed copy is reported and the");
+            Console.WriteLine("exit code is -1, the backup itself stands.");
             Console.WriteLine("databases that are not online are skipped and reported. One failing database does not");
             Console.WriteLine("stop the rest; the exit code is -1 if any failed. Append --json for one result line.");
         }
