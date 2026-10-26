@@ -25,7 +25,7 @@ using System.IO;
 
 namespace SqlSqueeze.Plugins.Storage
 {
-    public class LocalStorage : IBackupStorage, IPrunableStorage
+    public class LocalStorage : IBackupStorage, IPrunableStorage, IManifestStorage
     {
         private List<bool> mDeleteOnAbort = new List<bool>();
         private List<FileInfo> mFileInfosToDeleteOnAbort = new List<FileInfo>();
@@ -142,7 +142,7 @@ namespace SqlSqueeze.Plugins.Storage
             List<Stream> results = new List<Stream>(fileInfos.Count);
             foreach (FileInfo fi in fileInfos)
             {
-                results.Add(fi.Open(FileMode.Open));
+                results.Add(fi.Open(FileMode.Open, FileAccess.Read, FileShare.Read));
             }
 
             return results.ToArray();
@@ -248,6 +248,53 @@ write/flush errors are retried.
             return path;
         }
 
+        #region IManifestStorage Members
+
+        private const string ManifestSuffix = ".manifest.json";
+
+        public IList<string> GetFileNames(Dictionary<string, List<string>> config)
+        {
+            List<string> names = new List<string>();
+            if (mFileInfosToDeleteOnAbort.Count > 0)
+            {
+                foreach (FileInfo fi in mFileInfosToDeleteOnAbort)
+                {
+                    names.Add(fi.Name);
+                }
+            }
+            else
+            {
+                foreach (string path in config["path"])
+                {
+                    names.Add(new FileInfo(path).Name);
+                }
+            }
+            return names;
+        }
+
+        public void WriteManifest(Dictionary<string, List<string>> config, string json)
+        {
+            File.WriteAllText(ManifestPath(config), json);
+        }
+
+        public string ReadManifest(Dictionary<string, List<string>> config)
+        {
+            string path = ManifestPath(config);
+            return File.Exists(path) ? File.ReadAllText(path) : null;
+        }
+
+        // The manifest sits next to the first file. After GetBackupWriter the
+        // date tokens in the configured path are already expanded.
+        private string ManifestPath(Dictionary<string, List<string>> config)
+        {
+            string first = mFileInfosToDeleteOnAbort.Count > 0
+                ? mFileInfosToDeleteOnAbort[0].FullName
+                : new FileInfo(config["path"][0]).FullName;
+            return first + ManifestSuffix;
+        }
+
+        #endregion
+
         #region IPrunableStorage Members
 
         public PruneResult PruneOldFiles(Dictionary<string, List<string>> config)
@@ -277,6 +324,18 @@ write/flush errors are retried.
             PruneResult result = new PruneResult();
             foreach (FileInfo file in dir.GetFiles(pattern, SearchOption.TopDirectoryOnly))
             {
+                // A manifest goes with the backup it describes, so leave it to its owner
+                // (the pattern may match both, and each must be counted once). It may
+                // also already be gone because its backup was deleted earlier in this loop.
+                if (!File.Exists(file.FullName))
+                {
+                    continue;
+                }
+                if (file.Name.EndsWith(ManifestSuffix, StringComparison.Ordinal)
+                    && File.Exists(file.FullName.Substring(0, file.FullName.Length - ManifestSuffix.Length)))
+                {
+                    continue;
+                }
                 if (file.LastWriteTimeUtc < cutoffUtc)
                 {
                     long length = file.Length;
@@ -284,6 +343,13 @@ write/flush errors are retried.
                     result.DeletedFiles++;
                     result.BytesReclaimed += length;
                     result.DeletedPaths.Add(file.FullName);
+
+                    FileInfo manifest = new FileInfo(file.FullName + ManifestSuffix);
+                    if (manifest.Exists)
+                    {
+                        result.BytesReclaimed += manifest.Length;
+                        manifest.Delete();
+                    }
                 }
             }
             return result;

@@ -89,6 +89,9 @@ namespace SqlSqueeze.Cli
                                     case "prune":
                                         PrintPruneUsage();
                                         break;
+                                    case "verify":
+                                        PrintVerifyUsage();
+                                        break;
                                     case "listplugins":
                                         Console.WriteLine("Lists the plugins available.  Go on, try it.");
                                         break;
@@ -162,6 +165,44 @@ namespace SqlSqueeze.Cli
                                 catch (Exception e)
                                 {
                                     HandleException(e, false, json);
+                                    return -1;
+                                }
+                            }
+                        case "verify":
+                            {
+                                try
+                                {
+                                    if (args.Length < 2)
+                                    {
+                                        throw new ArgumentException("Usage: sqlsqueeze verify <storage> [pipeline...] [--json]");
+                                    }
+                                    string storageArg = args[1];
+                                    if (storageArg.StartsWith("file://"))
+                                    {
+                                        storageArg = string.Format("local(path={0})", new Uri(storageArg).LocalPath.Replace(";", ";;"));
+                                    }
+                                    ConfigPair storageConfig = ConfigUtil.ParseComponentConfig(storageComponents, storageArg);
+                                    List<string> pipelineArgs = new List<string>();
+                                    for (int i = 2; i < args.Length; i++)
+                                    {
+                                        pipelineArgs.Add(args[i]);
+                                    }
+                                    List<ConfigPair> pipelineConfig = BuildPipelineFromString(pipelineArgs, pipelineComponents);
+
+                                    VerifyResult verified = BackupPipeSystem.Verify(storageConfig, pipelineConfig);
+                                    PrintVerifyResult(verified, json);
+                                    return verified.Ok ? 0 : -1;
+                                }
+                                catch (Exception e)
+                                {
+                                    if (json)
+                                    {
+                                        PrintJsonError("verify", InnermostMessage(e));
+                                    }
+                                    else
+                                    {
+                                        HandleException(e, false, false);
+                                    }
                                     return -1;
                                 }
                             }
@@ -291,6 +332,40 @@ namespace SqlSqueeze.Cli
                 Console.WriteLine(string.Format("Completed Successfully. {0}", stats.Elapsed));
                 Console.WriteLine(string.Format("{0} bytes processed ({1:0.00} MB/s).",
                     stats.BytesProcessed, stats.MegaBytesPerSecond));
+            }
+        }
+
+        private static void PrintVerifyResult(VerifyResult verified, bool json)
+        {
+            if (json)
+            {
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    status = verified.Ok ? "ok" : "error",
+                    operation = "verify",
+                    manifestFound = verified.ManifestFound,
+                    storedBytes = verified.StoredBytes,
+                    rawBytes = verified.RawBytes,
+                    problems = verified.Problems,
+                }));
+                return;
+            }
+
+            foreach (string problem in verified.Problems)
+            {
+                Console.WriteLine("problem: " + problem);
+            }
+            if (!verified.Ok)
+            {
+                Console.WriteLine("Verification FAILED.");
+            }
+            else if (verified.ManifestFound)
+            {
+                Console.WriteLine(string.Format("Verified: {0} bytes stored, {1} bytes decoded; sizes and sha256 match the manifest.", verified.StoredBytes, verified.RawBytes));
+            }
+            else
+            {
+                Console.WriteLine(string.Format("Decoded {0} bytes without error, but there is no manifest to compare against, so corruption that still decodes cleanly would not be caught.", verified.RawBytes));
             }
         }
 
@@ -480,6 +555,7 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze backup");
             Console.WriteLine("\tsqlsqueeze restore");
             Console.WriteLine("\tsqlsqueeze prune");
+            Console.WriteLine("\tsqlsqueeze verify");
             Console.WriteLine("\tsqlsqueeze listplugins");
             Console.WriteLine("\tsqlsqueeze helpplugin");
             Console.WriteLine("\tsqlsqueeze version");
@@ -518,6 +594,19 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze prune \"local(dir=c:\\backups;pattern=*.bak.gz;olderThanDays=30)\"");
             Console.WriteLine("Deletes files in dir matching pattern (default *) whose last-write");
             Console.WriteLine("time is older than olderThanDays (minimum 1). Subfolders are skipped.");
+            Console.WriteLine("Append --json for one machine-readable result line.");
+        }
+
+        private static void PrintVerifyUsage()
+        {
+            Console.WriteLine("To check a stored backup without SQL Server (any machine that has the file):");
+            Console.WriteLine("\tsqlsqueeze verify file:///backups/model.bak.zst zstd");
+            Console.WriteLine("Give the storage first, then the same pipeline you restore with.");
+            Console.WriteLine("The file is read back through the pipeline (decrypt, decompress) and its size and");
+            Console.WriteLine("sha256, and those of the decoded stream, are compared with the manifest that");
+            Console.WriteLine("backup wrote next to it (<file>.manifest.json). Without a manifest it can only");
+            Console.WriteLine("confirm the file decodes. It does not ask SQL Server whether the decoded stream is");
+            Console.WriteLine("a valid backup. Exit code 0 when verified, -1 otherwise.");
             Console.WriteLine("Append --json for one machine-readable result line.");
         }
 

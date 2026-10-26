@@ -58,6 +58,41 @@ namespace SqlSqueeze.Core
         }
 
 
+        /// <summary>
+        /// Checks a stored backup without SQL Server: reads it back through the
+        /// pipeline and compares with the manifest written next to it (when the
+        /// storage keeps one).
+        /// </summary>
+        public static VerifyResult Verify(ConfigPair storageConfig, List<ConfigPair> pipelineConfig)
+        {
+            IBackupStorage storage = storageConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
+            BackupManifest manifest = null;
+            IManifestStorage manifests = storage as IManifestStorage;
+            if (manifests != null)
+            {
+                string json = manifests.ReadManifest(storageConfig.Parameters);
+                if (json != null)
+                {
+                    manifest = BackupManifest.FromJson(json);
+                }
+            }
+            return BackupVerifier.Verify(storage, storageConfig.Parameters, pipelineConfig, manifest);
+        }
+
+
+        /// <summary>The plugin name plus parameters of each stage, secrets redacted.</summary>
+        public static List<string> DescribePipeline(List<ConfigPair> pipelineConfig)
+        {
+            List<string> stages = new List<string>();
+            foreach (ConfigPair stage in pipelineConfig)
+            {
+                IBackupPlugin plugin = stage.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupPlugin;
+                stages.Add(BackupManifest.DescribeStage(plugin.Name, stage.Parameters));
+            }
+            return stages;
+        }
+
+
 
 
         private static BackupStats BackupOrRestore(bool isBackup, ConfigPair storageConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig, IUpdateNotification updateNotifier)
@@ -69,6 +104,7 @@ namespace SqlSqueeze.Core
 
             IBackupStorage storage = storageConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
             IBackupDatabase databaseComp = databaseConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupDatabase;
+            ManifestRecorder recorder = isBackup && storage is IManifestStorage ? new ManifestRecorder() : null;
 
 
             try
@@ -101,7 +137,7 @@ namespace SqlSqueeze.Core
                             List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.Parameters, isBackup, updateNotifier, out estimatedTotalBytes);
 
                             using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.Parameters) : storage.GetRestoreReader(storageConfig.Parameters, out estimatedTotalBytes)))
-                            using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup, streamNotification, estimatedTotalBytes)))
+                            using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup, streamNotification, estimatedTotalBytes, recorder)))
                             {
 
                                 VirtualDeviceSetConfig config = new VirtualDeviceSetConfig();
@@ -185,6 +221,11 @@ namespace SqlSqueeze.Core
                             throw exceptions;
                         }
 
+                        if (recorder != null)
+                        {
+                            WriteManifest(recorder, storage, storageConfig, databaseConfig, pipelineConfig);
+                        }
+
                         stats.Elapsed = elapsed.Elapsed;
                     }
                 }
@@ -201,7 +242,38 @@ namespace SqlSqueeze.Core
 
 
 
-        private static Stream[] CreatePipeline(List<ConfigPair> pipelineConfig, IList<Stream> fileStreams, bool isBackup, IStreamNotification streamNotification, long estimatedTotalBytes)
+        // A finished backup is already safely stored, so a manifest that cannot
+        // be written is reported on stderr (stdout carries the --json result)
+        // and does not fail the job.
+        private static void WriteManifest(ManifestRecorder recorder, IBackupStorage storage, ConfigPair storageConfig, ConfigPair databaseConfig, List<ConfigPair> pipelineConfig)
+        {
+            try
+            {
+                IManifestStorage manifests = (IManifestStorage)storage;
+                string database = FirstValue(databaseConfig.Parameters, "database", string.Empty);
+                string backupType = FirstValue(databaseConfig.Parameters, "backuptype", "full");
+                BackupManifest manifest = recorder.Build(database, backupType, ((IBackupPlugin)storage).Name,
+                    DescribePipeline(pipelineConfig), manifests.GetFileNames(storageConfig.Parameters));
+                manifests.WriteManifest(storageConfig.Parameters, manifest.ToJson());
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine("warning: the backup succeeded but its manifest was not written: " + e.Message);
+            }
+        }
+
+        private static string FirstValue(Dictionary<string, List<string>> parameters, string name, string fallback)
+        {
+            List<string> values;
+            if (parameters.TryGetValue(name, out values) && values.Count > 0)
+            {
+                return values[0];
+            }
+            return fallback;
+        }
+
+
+        internal static Stream[] CreatePipeline(List<ConfigPair> pipelineConfig, IList<Stream> fileStreams, bool isBackup, IStreamNotification streamNotification, long estimatedTotalBytes, ManifestRecorder recorder = null)
         {
             streamNotification.EstimatedBytes = estimatedTotalBytes;
 
@@ -210,6 +282,10 @@ namespace SqlSqueeze.Core
             foreach (Stream fileStream in fileStreams)
             {
                 Stream topStream = fileStream;
+                if (recorder != null)
+                {
+                    topStream = recorder.WrapStored(topStream);
+                }
                 if (!isBackup)
                 {
                     topStream = new TrackingStream(topStream, streamNotification);
@@ -230,6 +306,10 @@ namespace SqlSqueeze.Core
                 if (isBackup)
                 {
                     topStream = new TrackingStream(topStream, streamNotification);
+                }
+                if (recorder != null)
+                {
+                    topStream = recorder.WrapRaw(topStream);
                 }
                 result.Add(topStream);
             }
