@@ -596,6 +596,7 @@ namespace SqlSqueeze.Cli
                     operation = "copy",
                     attempts = result.Attempts,
                     bytesCopied = result.BytesCopied,
+                    bytesSkipped = result.BytesSkipped,
                     elapsedSeconds = seconds,
                     warnings = result.Warnings,
                     problems = result.Problems,
@@ -614,6 +615,10 @@ namespace SqlSqueeze.Cli
                 Console.WriteLine(result.Ok
                     ? string.Format("Copied {0} bytes in {1:0.0}s ({2} attempt(s)).", result.BytesCopied, seconds, result.Attempts)
                     : "Copy FAILED. Nothing is lost: run the same command again to retry.");
+                if (result.BytesSkipped > 0)
+                {
+                    Console.WriteLine(string.Format("{0} of those bytes were already at the destination from an earlier attempt and were not sent again.", result.BytesSkipped));
+                }
             }
             return result.Ok ? 0 : -1;
         }
@@ -636,8 +641,11 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("It retries through outages with a growing wait (5s doubling to 5 minutes) for up to 24 hours");
             Console.WriteLine("(--max-hours, --backoff-seconds), checks what it read against the manifest so a damaged");
             Console.WriteLine("source is not copied as if it were good, and writes the manifest last, so a destination");
-            Console.WriteLine("with a backup but no manifest is an unfinished copy. A failed attempt is aborted, never left");
-            Console.WriteLine("as a truncated object. It is safe to run again. Both storages need the same number of files.");
+            Console.WriteLine("with a backup but no manifest is an unfinished copy. Copying to S3 or Azure resumes: a retry,");
+            Console.WriteLine("or running the command again later, continues the unfinished upload and does not send again the");
+            Console.WriteLine("parts the server already holds with identical content (it still reads the whole source, to check");
+            Console.WriteLine("it against the manifest). A copy that is given up, or fails for a reason retrying cannot fix, is");
+            Console.WriteLine("aborted, never left as a truncated object. Both storages need the same number of files.");
             Console.WriteLine("Append --json for one machine-readable result line.");
         }
 

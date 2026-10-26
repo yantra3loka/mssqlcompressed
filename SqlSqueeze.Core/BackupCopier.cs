@@ -46,6 +46,10 @@ namespace SqlSqueeze.Core
         public bool Ok { get { return Problems.Count == 0; } }
         public int Attempts { get; set; }
         public long BytesCopied { get; set; }
+
+        /// <summary>Bytes the destination already held from an earlier attempt, so they were read but not sent again.</summary>
+        public long BytesSkipped { get; set; }
+
         public List<string> Problems { get; } = new List<string>();
         public List<string> Warnings { get; } = new List<string>();
     }
@@ -84,7 +88,6 @@ namespace SqlSqueeze.Core
                 }
                 catch (Exception e)
                 {
-                    destination.CleanupOnAbort();
                     if (options.OnAttemptFailed != null)
                     {
                         options.OnAttemptFailed(result.Attempts, e);
@@ -92,11 +95,15 @@ namespace SqlSqueeze.Core
                     string message = ErrorText.Innermost(e);
                     if (!IsTransient(e))
                     {
+                        destination.CleanupOnAbort();
                         result.Problems.Add(message);
                         return result;
                     }
                     if (options.UtcNow() + wait > deadline)
                     {
+                        // Between attempts the partial upload is kept so the next one can continue it;
+                        // only now, when the copy is given up, is the leftover removed.
+                        destination.CleanupOnAbort();
                         result.Problems.Add(string.Format("gave up after {0} attempt(s) over {1:0} minute(s): {2}",
                             result.Attempts, (options.UtcNow() - started).TotalMinutes, message));
                         return result;
@@ -118,7 +125,10 @@ namespace SqlSqueeze.Core
             try
             {
                 inputs = source.GetRestoreReader(sourceParams, out long estimated);
-                outputs = destination.GetBackupWriter(destinationParams);
+                // The source can be read again from the start, so a destination that can resume an
+                // unfinished upload is asked to: a retry then skips what the server already has.
+                IResumableStorage resumable = destination as IResumableStorage;
+                outputs = resumable != null ? resumable.GetResumableBackupWriter(destinationParams) : destination.GetBackupWriter(destinationParams);
                 hashed = new HashingStream[inputs.Length];
                 for (int i = 0; i < inputs.Length; i++)
                 {
@@ -135,16 +145,34 @@ namespace SqlSqueeze.Core
                 // Committing a writer is what makes the object appear, and can itself fail on the network.
                 for (int i = 0; i < outputs.Length; i++)
                 {
+                    IResumableStream resumableWriter = outputs[i] as IResumableStream;
+                    if (resumableWriter != null)
+                    {
+                        result.BytesSkipped += resumableWriter.BytesSkipped;
+                    }
                     outputs[i].Dispose();
                 }
                 finished = true;
             }
+            catch (Exception e)
+            {
+                if (outputs != null)
+                {
+                    // A fault that waiting can fix keeps the partial upload for the next attempt (suspend);
+                    // anything else discards it (abort), so nothing half-written is ever committed.
+                    if (IsTransient(e))
+                    {
+                        StreamAbort.SuspendAll(outputs);
+                    }
+                    else
+                    {
+                        StreamAbort.AbortAll(outputs);
+                    }
+                }
+                throw;
+            }
             finally
             {
-                if (!finished && outputs != null)
-                {
-                    StreamAbort.AbortAll(outputs);
-                }
                 Close(hashed);
                 Close(inputs);
                 Close(outputs);

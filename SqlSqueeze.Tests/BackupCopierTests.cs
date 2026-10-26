@@ -18,8 +18,12 @@ namespace SqlSqueeze.Tests
     {
         // ---- fakes ----
 
-        private class MemoryStorage : IBackupStorage, IManifestStorage
+        private class MemoryStorage : IBackupStorage, IManifestStorage, IResumableStorage
         {
+            public int ResumableWriterCalls;
+            public int Suspends;
+            public int Aborts;
+            public long SkippedPerWriter;       // what each resumable writer reports it did not need to send
             public List<string> Names = new List<string>();
             public List<byte[]> Contents = new List<byte[]>();
             public string Manifest;
@@ -33,6 +37,12 @@ namespace SqlSqueeze.Tests
             public string CommandLineHelp { get { return ""; } }
             public int GetNumberOfDevices(Dictionary<string, List<string>> config) { return Names.Count > 0 ? Names.Count : config["path"].Count; }
 
+            public Stream[] GetResumableBackupWriter(Dictionary<string, List<string>> config)
+            {
+                ResumableWriterCalls++;
+                return GetBackupWriter(config);
+            }
+
             public Stream[] GetBackupWriter(Dictionary<string, List<string>> config)
             {
                 WriterCalls++;
@@ -40,7 +50,7 @@ namespace SqlSqueeze.Tests
                 for (int i = 0; i < config["path"].Count; i++)
                 {
                     int index = i;
-                    writers.Add(new CommitStream(bytes =>
+                    writers.Add(new CommitStream(() => Suspends++, () => Aborts++, SkippedPerWriter, bytes =>
                     {
                         if (FailWrites > 0)
                         {
@@ -77,17 +87,26 @@ namespace SqlSqueeze.Tests
             public string ReadManifest(Dictionary<string, List<string>> config) { return Manifest; }
         }
 
-        private class CommitStream : MemoryStream
+        private class CommitStream : MemoryStream, IResumableStream
         {
+            private readonly Action mOnSuspend;
+            private readonly Action mOnAbort;
             private readonly Action<byte[]> mCommit;
             private bool mCommitted;
-            public CommitStream(Action<byte[]> commit) { mCommit = commit; }
+            private bool mDiscard;
+            public CommitStream(Action onSuspend, Action onAbort, long skipped, Action<byte[]> commit) { mOnSuspend = onSuspend; mOnAbort = onAbort; BytesSkipped = skipped; mCommit = commit; }
+            public long BytesSkipped { get; private set; }
+            public void Suspend() { mDiscard = true; mOnSuspend(); }
+            public void Abort() { mDiscard = true; mOnAbort(); }
             protected override void Dispose(bool disposing)
             {
                 if (disposing && !mCommitted)
                 {
                     mCommitted = true;
-                    mCommit(ToArray());
+                    if (!mDiscard)
+                    {
+                        mCommit(ToArray());
+                    }
                 }
                 base.Dispose(disposing);
             }
@@ -203,7 +222,9 @@ namespace SqlSqueeze.Tests
             Assert.True(r.Ok, string.Join("; ", r.Problems));
             Assert.Equal(4, r.Attempts);
             Assert.Equal(new[] { 5.0, 10.0, 20.0 }, clock.Sleeps.Select(s => s.TotalSeconds).ToArray());
-            Assert.Equal(3, dest.CleanupCalls);   // every failed attempt cleans up what it started
+            Assert.Equal(3, dest.Suspends);       // each failed attempt keeps its partial upload for the next
+            Assert.Equal(0, dest.Aborts);
+            Assert.Equal(0, dest.CleanupCalls);   // and nothing is cleaned up until the copy finally fails
             Assert.Equal(Data(2000, 5), dest.Contents[0]);
         }
 
@@ -230,6 +251,44 @@ namespace SqlSqueeze.Tests
             Assert.True(r.Attempts > 3);
             Assert.True(clock.Now - new DateTime(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc) <= TimeSpan.FromHours(1) + TimeSpan.FromSeconds(600));
             Assert.Contains(r.Problems, p => p.Contains("network unreachable") && p.Contains("gave up"));
+            Assert.Equal(1, dest.CleanupCalls);   // giving up is when the leftover partial upload is removed
+        }
+
+        [Fact]
+        public void Copy_UsesTheResumableWriter_WhenTheDestinationOffersOne_OnEveryAttempt()
+        {
+            MemoryStorage dest = new MemoryStorage { FailWrites = 2 };
+
+            CopyResult r = BackupCopier.Copy(Source(Data(100, 20)), Paths("a"), dest, Paths("/dst/x.bak"), Options(new Clock()));
+
+            Assert.True(r.Ok);
+            Assert.Equal(3, dest.ResumableWriterCalls);
+            Assert.Equal(0, dest.WriterCalls - dest.ResumableWriterCalls);   // the plain writer was never the one asked for
+        }
+
+        [Fact]
+        public void Copy_ReportsHowMuchOfTheUploadWasAlreadyAtTheDestination()
+        {
+            MemoryStorage dest = new MemoryStorage { SkippedPerWriter = 4000 };
+
+            CopyResult r = BackupCopier.Copy(Source(Data(5000, 22), Data(3000, 23)), Paths("a", "b"), dest, Paths("/dst/x.bak", "/dst/y.bak"), Options(new Clock()));
+
+            Assert.True(r.Ok);
+            Assert.Equal(8000, r.BytesCopied);
+            Assert.Equal(8000, r.BytesSkipped);    // 4000 for each of the two files
+        }
+
+        [Fact]
+        public void Copy_ANonTransientFailure_AbortsTheWriters_DoesNotKeepThem()
+        {
+            MemoryStorage dest = new MemoryStorage { FailWrites = 1, FailWith = new InvalidOperationException("403 forbidden") };
+
+            CopyResult r = BackupCopier.Copy(Source(Data(100, 21)), Paths("a"), dest, Paths("/dst/x.bak"), Options(new Clock()));
+
+            Assert.False(r.Ok);
+            Assert.Equal(0, dest.Suspends);
+            Assert.True(dest.Aborts >= 1);
+            Assert.Equal(1, dest.CleanupCalls);
         }
 
         [Theory]

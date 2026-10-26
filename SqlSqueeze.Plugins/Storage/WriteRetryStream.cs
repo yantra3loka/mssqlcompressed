@@ -28,7 +28,7 @@ namespace SqlSqueeze.Plugins.Storage
     /// write fails the job only after maxAttempts honest tries.
     /// Reads are passed through without retry.
     /// </summary>
-    public class WriteRetryStream : Stream, IAbortableStream
+    public class WriteRetryStream : Stream, IResumableStream
     {
         private readonly Stream mInner;
         private readonly int mMaxAttempts;
@@ -101,6 +101,32 @@ namespace SqlSqueeze.Plugins.Storage
             if (inner != null)
             {
                 inner.Abort();
+            }
+        }
+
+        /// <summary>
+        /// Passed to the stream underneath when it can keep an unfinished upload; otherwise there is
+        /// nothing to keep, so it is an abort (never a silent commit of a partial file).
+        /// </summary>
+        public void Suspend()
+        {
+            IResumableStream resumable = mInner as IResumableStream;
+            if (resumable != null)
+            {
+                resumable.Suspend();
+            }
+            else
+            {
+                Abort();
+            }
+        }
+
+        public long BytesSkipped
+        {
+            get
+            {
+                IResumableStream resumable = mInner as IResumableStream;
+                return resumable == null ? 0 : resumable.BytesSkipped;
             }
         }
 

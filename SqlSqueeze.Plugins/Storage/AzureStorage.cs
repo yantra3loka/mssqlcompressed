@@ -32,7 +32,7 @@ namespace SqlSqueeze.Plugins.Storage
     /// backups stream. The container is created when missing. The account
     /// key comes from accountkeyenv=, never the command line.
     /// </summary>
-    public class AzureStorage : IBackupStorage, IPrunableStorage, IManifestStorage
+    public class AzureStorage : IBackupStorage, IPrunableStorage, IManifestStorage, IResumableStorage
     {
         private static Dictionary<string, ParameterInfo> mBackupParamSchema;
         private static Dictionary<string, ParameterInfo> mPruneParamSchema;
@@ -87,6 +87,21 @@ namespace SqlSqueeze.Plugins.Storage
 
         public Stream[] GetBackupWriter(Dictionary<string, List<string>> config)
         {
+            return CreateWriters(config, false);
+        }
+
+        /// <summary>
+        /// Writers that continue an unfinished upload of the same blob: blocks the server already
+        /// staged with identical content (the block id carries a hash of it) are not sent again.
+        /// Use them only for a source that can be read again from the start.
+        /// </summary>
+        public Stream[] GetResumableBackupWriter(Dictionary<string, List<string>> config)
+        {
+            return CreateWriters(config, true);
+        }
+
+        private Stream[] CreateWriters(Dictionary<string, List<string>> config, bool resume)
+        {
             ParameterInfo.ValidateParams(mBackupParamSchema, config);
             AzureEndpoint endpoint = AzureEndpoint.FromConfig(config);
             EnsureContainer(endpoint);
@@ -107,7 +122,7 @@ namespace SqlSqueeze.Plugins.Storage
                 mWrittenBlobs.Add(blob);
                 Console.WriteLine("\tblob=" + blob);
                 Stream writer = new AzureBlockUploadStream(
-                    CreateClient(), endpoint, blob, blockSizeMB * 1024 * 1024);
+                    CreateClient(), endpoint, blob, blockSizeMB * 1024 * 1024, resume);
                 if (writeRetries > 1)
                 {
                     writer = new WriteRetryStream(writer, writeRetries, writeRetryBackoffMs);
@@ -471,7 +486,7 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
             }
         }
 
-        internal sealed class AzureBlockUploadStream : Stream, IAbortableStream
+        internal sealed class AzureBlockUploadStream : Stream, IResumableStream
         {
             private readonly HttpClient mClient;
             private readonly AzureEndpoint mEndpoint;
@@ -481,13 +496,17 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
             private readonly List<string> mBlockIds = new List<string>();
             private bool mDisposed;
             private bool mAborted;
+            private readonly bool mResume;
+            private long mBytesSkipped;
+            private HashSet<string> mStagedBlockIds;   // blocks the server already holds for this blob, when resuming
 
-            public AzureBlockUploadStream(HttpClient client, AzureEndpoint endpoint, string blob, int blockSizeBytes)
+            public AzureBlockUploadStream(HttpClient client, AzureEndpoint endpoint, string blob, int blockSizeBytes, bool resume = false)
             {
                 mClient = client;
                 mEndpoint = endpoint;
                 mBlob = blob;
                 mBlockSize = blockSizeBytes;
+                mResume = resume;
             }
 
             public override bool CanRead { get { return false; } }
@@ -532,6 +551,14 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
             /// blocks that were never committed are removed by Azure on its own after a week.
             /// </summary>
             public void Abort()
+            {
+                mAborted = true;
+            }
+
+            public long BytesSkipped { get { return mBytesSkipped; } }
+
+            /// <summary>Keep the staged blocks for a later attempt: the block list is not committed.</summary>
+            public void Suspend()
             {
                 mAborted = true;
             }
@@ -597,9 +624,23 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
                 mBuffer.SetLength(0);
                 mBuffer.Write(rest, 0, rest.Length);
 
+                // The id is the position plus a hash of the content, so an id the server already holds
+                // means exactly these bytes are there, and a block that changed never matches.
                 string blockId = Convert.ToBase64String(
-                    Encoding.UTF8.GetBytes(mBlockIds.Count.ToString("D8")));
+                    Encoding.UTF8.GetBytes(mBlockIds.Count.ToString("D8") + "-" + HexMd5(block)));
                 mBlockIds.Add(blockId);
+                if (mResume)
+                {
+                    if (mStagedBlockIds == null)
+                    {
+                        mStagedBlockIds = LoadStagedBlockIds();
+                    }
+                    if (mStagedBlockIds.Contains(blockId))
+                    {
+                        mBytesSkipped += block.Length;
+                        return;
+                    }
+                }
                 HttpRequestMessage request = Signed(
                     mEndpoint, "PUT", BlobPath(mEndpoint, mBlob),
                     "comp=block&blockid=" + Uri.EscapeDataString(blockId),
@@ -611,6 +652,41 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
                         ThrowForStatus("PutBlock", response);
                     }
                 }
+            }
+
+            private static string HexMd5(byte[] data)
+            {
+                using (System.Security.Cryptography.MD5 md5 = System.Security.Cryptography.MD5.Create())
+                {
+                    return Convert.ToHexString(md5.ComputeHash(data)).ToLowerInvariant();
+                }
+            }
+
+            // The ids of the uncommitted blocks the server holds for this blob; none when it cannot say.
+            private HashSet<string> LoadStagedBlockIds()
+            {
+                HashSet<string> ids = new HashSet<string>();
+                try
+                {
+                    HttpRequestMessage request = Signed(mEndpoint, "GET", BlobPath(mEndpoint, mBlob),
+                        "blocklisttype=uncommitted&comp=blocklist", null, null);
+                    using (HttpResponseMessage response = Send(mClient, request, false))
+                    {
+                        if (response.IsSuccessStatusCode)
+                        {
+                            string xml = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                            foreach (XmlElement block in XmlElements(xml, "Block"))
+                            {
+                                ids.Add(XmlInner(block.OuterXml, "Name"));
+                            }
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    // can't tell what is staged: send everything, which is always correct
+                }
+                return ids;
             }
 
             private void Commit()

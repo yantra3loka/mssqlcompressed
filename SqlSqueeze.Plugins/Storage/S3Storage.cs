@@ -33,7 +33,7 @@ namespace SqlSqueeze.Plugins.Storage
     /// backups stream), downloads stream. The bucket is created when
     /// missing. Secrets come from secretkeyenv=, never the command line.
     /// </summary>
-    public class S3Storage : IBackupStorage, IPrunableStorage, IManifestStorage
+    public class S3Storage : IBackupStorage, IPrunableStorage, IManifestStorage, IResumableStorage
     {
         private static Dictionary<string, ParameterInfo> mBackupParamSchema;
         private static Dictionary<string, ParameterInfo> mPruneParamSchema;
@@ -67,6 +67,7 @@ namespace SqlSqueeze.Plugins.Storage
         private readonly HttpMessageHandler mHandler;
         private readonly List<string> mAbortUploads = new List<string>();
         private readonly List<string> mWrittenKeys = new List<string>();
+        private readonly List<KeyValuePair<S3Endpoint, string>> mResumableKeys = new List<KeyValuePair<S3Endpoint, string>>();
         private const string ManifestSuffix = ".manifest.json";
 
         public S3Storage() : this(null)
@@ -91,6 +92,21 @@ namespace SqlSqueeze.Plugins.Storage
 
         public Stream[] GetBackupWriter(Dictionary<string, List<string>> config)
         {
+            return CreateWriters(config, false);
+        }
+
+        /// <summary>
+        /// Writers that continue an unfinished multipart upload of the same key if the server has
+        /// one, skipping each part it already holds with identical content (by MD5). Use them only
+        /// for a source that can be read again from the start.
+        /// </summary>
+        public Stream[] GetResumableBackupWriter(Dictionary<string, List<string>> config)
+        {
+            return CreateWriters(config, true);
+        }
+
+        private Stream[] CreateWriters(Dictionary<string, List<string>> config, bool resume)
+        {
             ParameterInfo.ValidateParams(mBackupParamSchema, config);
             S3Endpoint endpoint = S3Endpoint.FromConfig(config);
             EnsureBucket(endpoint);
@@ -110,8 +126,12 @@ namespace SqlSqueeze.Plugins.Storage
                 string key = LocalStorage.ExpandDateTokens(rawKey);
                 mWrittenKeys.Add(key);
                 Console.WriteLine("\tkey=" + key);
+                if (resume)
+                {
+                    mResumableKeys.Add(new KeyValuePair<S3Endpoint, string>(endpoint, key));
+                }
                 Stream writer = new S3MultipartUploadStream(
-                    CreateClient(endpoint), endpoint, key, partSizeMB * 1024 * 1024);
+                    CreateClient(endpoint), endpoint, key, partSizeMB * 1024 * 1024, resume);
                 if (writeRetries > 1)
                 {
                     writer = new WriteRetryStream(writer, writeRetries, writeRetryBackoffMs);
@@ -143,12 +163,38 @@ namespace SqlSqueeze.Plugins.Storage
             return results.ToArray();
         }
 
+        /// <summary>
+        /// Removes the unfinished uploads that resumable writers left behind (a copy that gave up).
+        /// Nothing to do after a plain backup: its failed uploads are aborted as they fail.
+        /// </summary>
         public void CleanupOnAbort()
         {
             lock (mAbortUploads)
             {
                 mAbortUploads.Clear();
             }
+            foreach (KeyValuePair<S3Endpoint, string> pending in mResumableKeys)
+            {
+                try
+                {
+                    using (HttpClient client = CreateClient(pending.Key))
+                    {
+                        foreach (KeyValuePair<string, DateTime> upload in S3MultipartUploadStream.ListUploads(client, pending.Key, pending.Value))
+                        {
+                            HttpRequestMessage request = SignedRequest(pending.Key, "DELETE", pending.Value,
+                                "uploadId=" + Uri.EscapeDataString(upload.Key), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+                            using (Send(client, request, false))
+                            {
+                            }
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    // best effort: an orphaned upload costs a little storage but is never an object
+                }
+            }
+            mResumableKeys.Clear();
         }
 
         public PruneResult PruneOldFiles(Dictionary<string, List<string>> config)
@@ -484,7 +530,7 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
             }
         }
 
-        internal sealed class S3MultipartUploadStream : Stream, IAbortableStream
+        internal sealed class S3MultipartUploadStream : Stream, IResumableStream
         {
             private readonly HttpClient mClient;
             private readonly S3Endpoint mEndpoint;
@@ -496,13 +542,18 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
             private bool mDisposed;
             private bool mAborted;
             private bool mServerAborted;
+            private bool mSuspended;
+            private long mBytesSkipped;
+            private readonly bool mResume;
+            private Dictionary<int, string> mExistingParts;   // part number -> MD5 of the part the server already holds
 
-            public S3MultipartUploadStream(HttpClient client, S3Endpoint endpoint, string key, int partSizeBytes)
+            public S3MultipartUploadStream(HttpClient client, S3Endpoint endpoint, string key, int partSizeBytes, bool resume = false)
             {
                 mClient = client;
                 mEndpoint = endpoint;
                 mKey = key;
                 mPartSize = partSizeBytes;
+                mResume = resume;
             }
 
             public override bool CanRead { get { return false; } }
@@ -517,7 +568,7 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                if (mAborted)
+                if (mAborted || mSuspended)
                 {
                     // the pipeline flushes its last bytes into the stream as it unwinds after a failure
                     return;
@@ -532,8 +583,16 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
                 }
                 catch
                 {
-                    // A write that failed leaves a hole: this upload must never be completed.
-                    mAborted = true;
+                    // A write that failed leaves a hole: this upload must never be completed. A resumable
+                    // upload keeps what the server has, for the next attempt; any other is thrown away.
+                    if (mResume)
+                    {
+                        mSuspended = true;
+                    }
+                    else
+                    {
+                        mAborted = true;
+                    }
                     throw;
                 }
             }
@@ -547,6 +606,18 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
             {
                 mAborted = true;
                 AbortOnServer();
+            }
+
+            public long BytesSkipped { get { return mBytesSkipped; } }
+
+            /// <summary>Keep what the server has for a later attempt: nothing is completed or deleted.</summary>
+            public void Suspend()
+            {
+                if (!mAborted)
+                {
+                    mSuspended = true;
+                    mBuffer.SetLength(0);
+                }
             }
 
             private void AbortOnServer()
@@ -581,7 +652,7 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
                         {
                             AbortOnServer();
                         }
-                        else
+                        else if (!mSuspended)
                         {
                             UploadBufferedPart(true);
                             Complete();
@@ -611,11 +682,81 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
                 throw new NotSupportedException();
             }
 
+            /// <summary>The unfinished uploads of exactly this key, newest first, as (upload id, when it started).</summary>
+            internal static List<KeyValuePair<string, DateTime>> ListUploads(HttpClient client, S3Endpoint endpoint, string key)
+            {
+                List<KeyValuePair<string, DateTime>> uploads = new List<KeyValuePair<string, DateTime>>();
+                HttpRequestMessage request = SignedRequest(endpoint, "GET", string.Empty,
+                    "uploads=&prefix=" + Uri.EscapeDataString(key), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+                using (HttpResponseMessage response = Send(client, request, false))
+                {
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        return uploads;
+                    }
+                    string xml = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    foreach (XmlElement upload in XmlElements(xml, "Upload"))
+                    {
+                        if (XmlInner(upload.OuterXml, "Key") == key)
+                        {
+                            DateTime initiated;
+                            DateTime.TryParse(XmlInner(upload.OuterXml, "Initiated"), null, System.Globalization.DateTimeStyles.AdjustToUniversal, out initiated);
+                            uploads.Add(new KeyValuePair<string, DateTime>(XmlInner(upload.OuterXml, "UploadId"), initiated));
+                        }
+                    }
+                }
+                uploads.Sort((a, b) => b.Value.CompareTo(a.Value));
+                return uploads;
+            }
+
+            // The parts the server holds for an upload (number -> MD5 of the part), or false when it cannot say.
+            private bool TryListParts(string uploadId, out Dictionary<int, string> parts)
+            {
+                parts = new Dictionary<int, string>();
+                int marker = 0;
+                while (true)
+                {
+                    HttpRequestMessage request = SignedRequest(mEndpoint, "GET", mKey,
+                        "uploadId=" + Uri.EscapeDataString(uploadId) + "&max-parts=1000" + (marker > 0 ? "&part-number-marker=" + marker : string.Empty),
+                        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+                    using (HttpResponseMessage response = Send(mClient, request, false))
+                    {
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            return false;
+                        }
+                        string xml = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        foreach (XmlElement part in XmlElements(xml, "Part"))
+                        {
+                            parts[int.Parse(XmlInner(part.OuterXml, "PartNumber"))] = XmlInner(part.OuterXml, "ETag").Trim('"').ToLowerInvariant();
+                        }
+                        if (!string.Equals(XmlInner(xml, "IsTruncated"), "true", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                        marker = int.Parse(XmlInner(xml, "NextPartNumberMarker"));
+                    }
+                }
+            }
+
             private void EnsureUploadId()
             {
                 if (mUploadId != null)
                 {
                     return;
+                }
+                if (mResume)
+                {
+                    foreach (KeyValuePair<string, DateTime> candidate in ListUploads(mClient, mEndpoint, mKey))
+                    {
+                        Dictionary<int, string> parts;
+                        if (TryListParts(candidate.Key, out parts))
+                        {
+                            mUploadId = candidate.Key;
+                            mExistingParts = parts;
+                            return;
+                        }
+                    }
                 }
                 HttpRequestMessage request = SignedRequest(mEndpoint, "POST", mKey,
                     "uploads=", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
@@ -657,6 +798,18 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
 
                 string payloadHash = HexSha256(part);
                 int partNumber = mPartETags.Count + 1;
+                if (mExistingParts != null)
+                {
+                    string have;
+                    string md5 = HexMd5(part);
+                    if (mExistingParts.TryGetValue(partNumber, out have) && have == md5)
+                    {
+                        // the server already holds exactly these bytes as this part
+                        mPartETags.Add(md5);
+                        mBytesSkipped += part.Length;
+                        return;
+                    }
+                }
                 HttpRequestMessage request = SignedRequest(mEndpoint, "PUT", mKey,
                     "partNumber=" + partNumber + "&uploadId=" + Uri.EscapeDataString(mUploadId), payloadHash);
                 request.Content = new ByteArrayContent(part);
@@ -701,6 +854,14 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
                     {
                         ThrowForStatus("CompleteMultipartUpload", response);
                     }
+                }
+            }
+
+            private static string HexMd5(byte[] data)
+            {
+                using (MD5 md5 = MD5.Create())
+                {
+                    return Convert.ToHexString(md5.ComputeHash(data)).ToLowerInvariant();
                 }
             }
 
