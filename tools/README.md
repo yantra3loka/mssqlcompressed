@@ -127,6 +127,12 @@ queries for "latest per database" and "missing a fresh full".
   manifests that were skipped while scanning. Nothing to restore (no full
   backup of that database in the folder) is a top-level
   `{status:"error", message}`.
+- `sqlsqueeze copy <source> <destination> --json` prints `{status,
+  operation:"copy", attempts, bytesCopied, elapsedSeconds, warnings[],
+  problems[]}`; `status:"error"` (exit `-1`) means it gave up or hit a fault
+  retrying cannot fix, and `problems` says which. A source that does not match
+  its manifest is an error, not a warning. Different file counts, or the same
+  source and destination, are a top-level `{status:"error", message}`.
 - `--from-manifest` (on `unpack`, `restore`, `verify`, `test-restore`) takes
   the pipeline from the manifest instead of the command line; it is an error
   to give both, or to use it where there is no manifest or the pipeline had a

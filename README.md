@@ -164,6 +164,31 @@ Copy-only backups are not part of a chain.
 - Local folders only for now; manifests that are unreadable, or whose backup
   file is missing, are skipped with a warning.
 
+## Copying a backup somewhere else
+
+`sqlsqueeze copy <source-storage> <destination-storage>` copies a finished
+backup, with its manifest, from one storage to another as it is stored (no
+pipeline, no SQL Server): a second copy on another disk or share, or off to S3
+or Azure. A backup that streams straight into cloud storage cannot be resumed
+if the network drops, because SQL Server writes it only once; backing up
+locally and then copying is the way to get Redgate-style network resilience.
+
+- It **retries through outages** with a growing wait (5 seconds doubling to
+  5 minutes) for up to 24 hours (`--max-hours`, `--backoff-seconds`), and
+  only for faults that waiting can fix: the network, timeouts, a server that
+  is down or busy. A missing file, bad credentials or a damaged source fail
+  at once.
+- It **checks what it read against the manifest** before anything is
+  committed, so a source that has changed or been damaged since the backup is
+  refused rather than copied as if it were good.
+- The manifest is written **last**, so a destination holding a backup but no
+  manifest is an unfinished copy. A failed attempt is aborted, never left as a
+  truncated object. Running it again is always safe.
+- Both storages need the same number of files (stripes). The copied
+  manifest names the destination's files.
+- Not built yet: resuming an interrupted copy part-way (a retry copies the
+  file again from the start), and a `--copy-to` option on `backup` itself.
+
 ## Scripting
 
 - `--json` on backup/restore/prune: one result object on stdout, exit
@@ -248,7 +273,7 @@ write retry with backoff (`writeretries=`) on `local`, `s3` and `azure` ·
 backup manifests · `test-restore` (scratch restore + `DBCC CHECKDB`) ·
 `unpack` (back to a plain native `.bak`) and `--from-manifest` (no retyping the
 pipeline), for local, S3 and Azure storage · `restore --kill-connections` and
-orphaned-user warnings · `restore-chain` (latest full + diff + logs, point in
+orphaned-user warnings · `copy` (retries through outages, checked against the manifest) · `restore-chain` (latest full + diff + logs, point in
 time, standby) · `backup-all` (many databases, full/diff/log planning).
 
 Still to do, in order:
@@ -256,11 +281,11 @@ Still to do, in order:
 1. **Broader live validation.** Windows is verified on SQL Server 2025
    Express and Linux on SQL Server 2022. Still to cover: 2016–2025 on
    both OSes, in CI.
-2. **Resumable transfers, copy queue, real-cloud testing.** Writes retry
-   with backoff within a run, but nothing resumes an interrupted upload
-   in a later run and there is no copy-to/log-copy queue (Redgate keeps
-   retrying for up to 24 hours). S3 and Azure were tested against moto
-   and Azurite only, not real cloud accounts.
+2. **Resuming a copy part-way, `--copy-to`, real-cloud testing.** `copy`
+   retries through outages for up to 24 hours, but a retry copies the whole
+   file again, and `backup` has no built-in copy-to (copy is a second
+   command). S3 and Azure were tested against moto and Azurite only, not
+   real cloud accounts.
 3. **Chains from cloud storage and by LSN.** `restore-chain` reads local
    folders only (S3 and Azure have no listing yet), and picks by time taken
    rather than by log sequence number.
@@ -357,6 +382,24 @@ setups DBAs already run); anything that only works untested.
   a corrupted copy failed and left no output behind. A backup made with a
   literal password has no secret in its manifest (0 occurrences) and
   `--from-manifest` refused it with a clear message.
+- **A failed backup to S3 or Azure left a truncated object that looked like a
+  backup.** The cloud writers completed their upload when the pipeline
+  disposed them, even when the backup had failed part-way (SQL Server
+  aborting, or the pipeline breaking). Live against moto and Azurite, a
+  backup of a database with a corrupted page, taken with `CHECKSUM`, failed
+  as it should, but the previous release left `db/old.bak` behind in both
+  stores (657,746 bytes in S3, against about 2.5 MB for a good backup) while
+  the new release left nothing. Writers now implement `IAbortableStream`:
+  the pipeline aborts them before disposing on any failure, a failed write
+  marks them aborted, writes after an abort are discarded, and S3 deletes the
+  multipart upload. Any object that failed backups left behind in cloud
+  storage should be deleted; a good backup always has a manifest beside it.
+- `copy`, live against moto and Azurite (2026-10-26): **PASS**. A `zstd` +
+  `aes` backup copied to S3 verified from its own manifest with no pipeline
+  typed. With Azurite stopped, a copy to Azure failed three times with
+  "Connection refused" (waiting 2, 4 and 8 seconds), succeeded on the fourth
+  attempt after Azurite came back, and the copy verified. A source with one
+  flipped byte was refused after one attempt and left nothing in the bucket.
 - `restore-chain`, live against SQL Server 2022 on Linux (2026-10-26):
   **PASS**. A chain of one full, one differential and three log backups
   (data inserted between each, all `zstd` + `aes`) was restored from the
