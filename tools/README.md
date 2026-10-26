@@ -118,6 +118,15 @@ queries for "latest per database" and "missing a fresh full".
 - `restore --json` also prints `warnings[]` (for example orphaned users after
   a restore onto another server); the restore itself succeeded. `restore
   --kill-connections` rolls back other sessions first.
+- `sqlsqueeze restore-chain <folder> <database> --db "db(...)" --json`
+  prints `{status, operation:"restore-chain", dryRun, database,
+  bytesProcessed, steps:[{file, backupType, status, message,
+  bytesProcessed}], warnings[], problems[]}`. A step's `status` is `ok`,
+  `error`, `not run` (after a failure) or `planned` (`--dry-run`); `status`
+  is `error` and the exit code `-1` if any step failed. `warnings` lists
+  manifests that were skipped while scanning. Nothing to restore (no full
+  backup of that database in the folder) is a top-level
+  `{status:"error", message}`.
 - `--from-manifest` (on `unpack`, `restore`, `verify`, `test-restore`) takes
   the pipeline from the manifest instead of the command line; it is an error
   to give both, or to use it where there is no manifest or the pipeline had a

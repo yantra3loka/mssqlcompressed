@@ -132,8 +132,37 @@ this server are reported as a **warning** (the restore still succeeded): the
 usual result of restoring onto another server. Logins are matched by SID, not
 by name, so a login recreated with the same name still leaves the user
 orphaned; fix each with `ALTER USER <user> WITH LOGIN = <login>`. The warning
-appears in the `--json` result as `warnings[]`. It is skipped for a log
-restore, a verify, and while restoring in steps (`NORECOVERY`/`STANDBY`).
+appears in the `--json` result as `warnings[]`. It is skipped for a verify
+and while restoring in steps (`NORECOVERY`/`STANDBY`); the last log of a
+chain, which brings the database online, does report it.
+
+## Restoring the latest chain
+
+`sqlsqueeze restore-chain <folder> <database> --db "db(...)"` restores a
+database to its latest state from the backups in a folder, without you
+choosing the files or retyping the pipeline. It reads the manifests under the
+folder (subfolders included, so `backup-all`'s layout works), takes the
+latest full, the latest differential after it and every log after that, and
+restores them in order, each with the pipeline its manifest records
+(`NORECOVERY` until the last step, which brings the database online).
+Copy-only backups are not part of a chain.
+
+- `--stopat "<time>"` restores what was current at that time (server local
+  time): the latest full and differential before it, and the logs up to and
+  including the first one taken after it, with `STOPAT` applied.
+- `--as <name>` restores under another name, placing the files in the
+  server's default folders (it needs the file list in the manifest).
+  `--replace` and `--kill-connections` apply to the first step.
+- `--norecovery` leaves the database restoring for more logs later;
+  `--standby <file>` leaves it readable between steps (log shipping).
+  `--dry-run` prints the plan without touching the server.
+- It stops at the first step that fails and says which; the database is left
+  restoring so the chain can be continued once the cause is fixed. Selection
+  goes by when each backup was taken, not by log sequence number, but SQL
+  Server checks the LSNs as it restores, so a missing log fails at the next
+  step (with SQL Server's own message) instead of restoring wrongly.
+- Local folders only for now; manifests that are unreadable, or whose backup
+  file is missing, are skipped with a warning.
 
 ## Scripting
 
@@ -218,7 +247,9 @@ write retry with backoff (`writeretries=`) on `local`, `s3` and `azure` ·
 `verify` (hashes, and `--sql` for SQL Server's own `RESTORE VERIFYONLY`) +
 backup manifests · `test-restore` (scratch restore + `DBCC CHECKDB`) ·
 `unpack` (back to a plain native `.bak`) and `--from-manifest` (no retyping the
-pipeline), for local, S3 and Azure storage · `backup-all` (many databases, full/diff/log planning).
+pipeline), for local, S3 and Azure storage · `restore --kill-connections` and
+orphaned-user warnings · `restore-chain` (latest full + diff + logs, point in
+time, standby) · `backup-all` (many databases, full/diff/log planning).
 
 Still to do, in order:
 
@@ -230,11 +261,11 @@ Still to do, in order:
    in a later run and there is no copy-to/log-copy queue (Redgate keeps
    retrying for up to 24 hours). S3 and Azure were tested against moto
    and Azurite only, not real cloud accounts.
-3. **Restore the latest chain automatically.** `restore` takes one backup
-   at a time; the PowerShell `Restore-SqlChain` picks a full, differential
-   and logs from a folder by file name.
+3. **Chains from cloud storage and by LSN.** `restore-chain` reads local
+   folders only (S3 and Azure have no listing yet), and picks by time taken
+   rather than by log sequence number.
 4. **Test restores of differential and log chains.** `test-restore` takes
-   full backups only.
+   full backups only; `restore-chain --as` could be the base for it.
 
 Non-goals: a GUI (the engine + scripts + docs slot into the Ola/dbatools
 setups DBAs already run); anything that only works untested.
@@ -326,6 +357,17 @@ setups DBAs already run); anything that only works untested.
   a corrupted copy failed and left no output behind. A backup made with a
   literal password has no secret in its manifest (0 occurrences) and
   `--from-manifest` refused it with a clear message.
+- `restore-chain`, live against SQL Server 2022 on Linux (2026-10-26):
+  **PASS**. A chain of one full, one differential and three log backups
+  (data inserted between each, all `zstd` + `aes`) was restored from the
+  folder with no file or pipeline named: five steps in order, 18,000 rows,
+  identical checksum to the source. `--stopat` a moment before the last
+  batch restored 15,000 rows and left that batch out. `--norecovery` left
+  the database `RESTORING`; `--standby` left it `ONLINE` with
+  `is_in_standby=1` and readable. With the middle log deleted, it stopped
+  at the next log with SQL Server's LSN error, did not run the last step,
+  exited non-zero and left the database `RESTORING`. `--dry-run` printed the
+  plan with no SQL Server involved.
 - `--kill-connections` and orphaned-user warnings, live against SQL Server
   2022 on Linux (2026-10-26): **PASS**. With another session open in the
   database, a restore over it failed with SQL Server's "exclusive access
