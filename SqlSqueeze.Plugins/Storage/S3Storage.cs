@@ -484,7 +484,7 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
             }
         }
 
-        internal sealed class S3MultipartUploadStream : Stream
+        internal sealed class S3MultipartUploadStream : Stream, IAbortableStream
         {
             private readonly HttpClient mClient;
             private readonly S3Endpoint mEndpoint;
@@ -494,6 +494,8 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
             private string mUploadId;
             private readonly List<string> mPartETags = new List<string>();
             private bool mDisposed;
+            private bool mAborted;
+            private bool mServerAborted;
 
             public S3MultipartUploadStream(HttpClient client, S3Endpoint endpoint, string key, int partSizeBytes)
             {
@@ -515,15 +517,57 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                mBuffer.Write(buffer, offset, count);
-                while (mBuffer.Length >= mPartSize)
+                if (mAborted)
                 {
-                    UploadBufferedPart(false);
+                    // the pipeline flushes its last bytes into the stream as it unwinds after a failure
+                    return;
+                }
+                try
+                {
+                    mBuffer.Write(buffer, offset, count);
+                    while (mBuffer.Length >= mPartSize)
+                    {
+                        UploadBufferedPart(false);
+                    }
+                }
+                catch
+                {
+                    // A write that failed leaves a hole: this upload must never be completed.
+                    mAborted = true;
+                    throw;
                 }
             }
 
             public override void Flush()
             {
+            }
+
+            /// <summary>Discard the upload: nothing is completed on dispose, and any parts already sent are deleted.</summary>
+            public void Abort()
+            {
+                mAborted = true;
+                AbortOnServer();
+            }
+
+            private void AbortOnServer()
+            {
+                if (mUploadId == null || mServerAborted)
+                {
+                    return;
+                }
+                mServerAborted = true;
+                try
+                {
+                    HttpRequestMessage request = SignedRequest(mEndpoint, "DELETE", mKey,
+                        "uploadId=" + Uri.EscapeDataString(mUploadId), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+                    using (Send(mClient, request, false))
+                    {
+                    }
+                }
+                catch (Exception)
+                {
+                    // best effort: an orphaned upload costs a little storage but is never an object
+                }
             }
 
             protected override void Dispose(bool disposing)
@@ -533,8 +577,15 @@ Prune: s3(endpoint=...;bucket=...;prefix=...;pattern=*.bak.zst;olderThanDays=30)
                     mDisposed = true;
                     try
                     {
-                        UploadBufferedPart(true);
-                        Complete();
+                        if (mAborted)
+                        {
+                            AbortOnServer();
+                        }
+                        else
+                        {
+                            UploadBufferedPart(true);
+                            Complete();
+                        }
                     }
                     finally
                     {

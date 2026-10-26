@@ -28,7 +28,7 @@ namespace SqlSqueeze.Plugins.Storage
     /// write fails the job only after maxAttempts honest tries.
     /// Reads are passed through without retry.
     /// </summary>
-    public class WriteRetryStream : Stream
+    public class WriteRetryStream : Stream, IAbortableStream
     {
         private readonly Stream mInner;
         private readonly int mMaxAttempts;
@@ -92,6 +92,16 @@ namespace SqlSqueeze.Plugins.Storage
         public override void SetLength(long value)
         {
             mInner.SetLength(value);
+        }
+
+        /// <summary>An abort is not a transient fault to retry: it is passed straight to the stream underneath.</summary>
+        public void Abort()
+        {
+            IAbortableStream inner = mInner as IAbortableStream;
+            if (inner != null)
+            {
+                inner.Abort();
+            }
         }
 
         protected override void Dispose(bool disposing)

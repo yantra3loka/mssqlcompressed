@@ -186,6 +186,15 @@ namespace SqlSqueeze.Core
             try
             {
                 verified = BackupVerifier.Verify(source, sourceConfig.Parameters, pipelineConfig, manifest, outputs);
+                if (!verified.Ok)
+                {
+                    StreamAbort.AbortAll(outputs);
+                }
+            }
+            catch
+            {
+                StreamAbort.AbortAll(outputs);
+                throw;
             }
             finally
             {
@@ -199,6 +208,33 @@ namespace SqlSqueeze.Core
                 destination.CleanupOnAbort();
             }
             return new UnpackResult(verified);
+        }
+
+        /// <summary>
+        /// Runs when a backup's streams are about to be disposed: if the backup did not complete,
+        /// the file streams are aborted first, so a writer to cloud storage discards what it has
+        /// instead of completing the upload and leaving a truncated object that looks like a backup.
+        /// </summary>
+        private sealed class AbortUnlessCompleted : IDisposable
+        {
+            private readonly bool mIsBackup;
+            private readonly IEnumerable<Stream> mFiles;
+            private readonly Func<bool> mCompleted;
+
+            public AbortUnlessCompleted(bool isBackup, IEnumerable<Stream> files, Func<bool> completed)
+            {
+                mIsBackup = isBackup;
+                mFiles = files;
+                mCompleted = completed;
+            }
+
+            public void Dispose()
+            {
+                if (mIsBackup && !mCompleted())
+                {
+                    StreamAbort.AbortAll(mFiles);
+                }
+            }
         }
 
         private static bool SamePlace(ConfigPair a, ConfigPair b)
@@ -294,6 +330,23 @@ namespace SqlSqueeze.Core
         }
 
 
+        /// <summary>
+        /// Copies a finished backup and its manifest from one storage to another, retrying
+        /// through outages until options.MaxDuration, and checking what was read against the
+        /// manifest. The backup is copied as stored (no pipeline), so it stays as it was.
+        /// </summary>
+        public static CopyResult Copy(ConfigPair sourceConfig, ConfigPair destinationConfig, CopyOptions options)
+        {
+            IBackupStorage source = sourceConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
+            IBackupStorage destination = destinationConfig.TransformationType.GetConstructor(new Type[0]).Invoke(new object[0]) as IBackupStorage;
+            if (SamePlace(sourceConfig, destinationConfig))
+            {
+                throw new ArgumentException("The destination is the same as the source.");
+            }
+            return BackupCopier.Copy(source, sourceConfig.Parameters, destination, destinationConfig.Parameters, options);
+        }
+
+
         /// <summary>The plugin name plus parameters of each stage, secrets redacted.</summary>
         public static List<string> DescribePipeline(List<ConfigPair> pipelineConfig)
         {
@@ -348,10 +401,12 @@ namespace SqlSqueeze.Core
                         {
                             InternalStreamNotification streamNotification = new InternalStreamNotification(updateNotifier);
                             long estimatedTotalBytes;
+                            bool streamsCompleted = false;
                             List<string> deviceNames = sql.PreConnect(clusterNetworkName, instanceName, deviceSetName, numDevices, databaseComp, databaseConfig.Parameters, isBackup, updateNotifier, out estimatedTotalBytes);
 
                             using (DisposableList<Stream> fileStreams = new DisposableList<Stream>(isBackup ? storage.GetBackupWriter(storageConfig.Parameters) : storage.GetRestoreReader(storageConfig.Parameters, out estimatedTotalBytes)))
                             using (DisposableList<Stream> topOfPilelines = new DisposableList<Stream>(CreatePipeline(pipelineConfig, fileStreams, isBackup, streamNotification, estimatedTotalBytes, recorder)))
+                            using (new AbortUnlessCompleted(isBackup, fileStreams, () => streamsCompleted))
                             {
 
                                 VirtualDeviceSetConfig config = new VirtualDeviceSetConfig();
@@ -408,6 +463,7 @@ namespace SqlSqueeze.Core
                                     }
                                     stats.BytesProcessed = transferred;
                                     stats.EstimatedBytes = estimatedTotalBytes;
+                                    streamsCompleted = !exceptions.HasExceptions;
 
 
                                 }

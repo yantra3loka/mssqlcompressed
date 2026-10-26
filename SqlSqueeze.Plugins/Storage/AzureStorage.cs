@@ -471,7 +471,7 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
             }
         }
 
-        internal sealed class AzureBlockUploadStream : Stream
+        internal sealed class AzureBlockUploadStream : Stream, IAbortableStream
         {
             private readonly HttpClient mClient;
             private readonly AzureEndpoint mEndpoint;
@@ -480,6 +480,7 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
             private readonly MemoryStream mBuffer = new MemoryStream();
             private readonly List<string> mBlockIds = new List<string>();
             private bool mDisposed;
+            private bool mAborted;
 
             public AzureBlockUploadStream(HttpClient client, AzureEndpoint endpoint, string blob, int blockSizeBytes)
             {
@@ -501,15 +502,38 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                mBuffer.Write(buffer, offset, count);
-                while (mBuffer.Length >= mBlockSize)
+                if (mAborted)
                 {
-                    StageBufferedBlock(false);
+                    // the pipeline flushes its last bytes into the stream as it unwinds after a failure
+                    return;
+                }
+                try
+                {
+                    mBuffer.Write(buffer, offset, count);
+                    while (mBuffer.Length >= mBlockSize)
+                    {
+                        StageBufferedBlock(false);
+                    }
+                }
+                catch
+                {
+                    // A write that failed leaves a hole: this blob must never be committed.
+                    mAborted = true;
+                    throw;
                 }
             }
 
             public override void Flush()
             {
+            }
+
+            /// <summary>
+            /// Discard the upload: the block list is never committed, so no blob appears. Staged
+            /// blocks that were never committed are removed by Azure on its own after a week.
+            /// </summary>
+            public void Abort()
+            {
+                mAborted = true;
             }
 
             protected override void Dispose(bool disposing)
@@ -519,8 +543,11 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
                     mDisposed = true;
                     try
                     {
-                        StageBufferedBlock(true);
-                        Commit();
+                        if (!mAborted)
+                        {
+                            StageBufferedBlock(true);
+                            Commit();
+                        }
                     }
                     finally
                     {

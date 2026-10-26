@@ -104,6 +104,9 @@ namespace SqlSqueeze.Cli
                                     case "restore-chain":
                                         PrintRestoreChainUsage();
                                         break;
+                                    case "copy":
+                                        PrintCopyUsage();
+                                        break;
                                     case "listplugins":
                                         Console.WriteLine("Lists the plugins available.  Go on, try it.");
                                         break;
@@ -189,6 +192,25 @@ namespace SqlSqueeze.Cli
                                 catch (Exception e)
                                 {
                                     HandleException(e, false, json);
+                                    return -1;
+                                }
+                            }
+                        case "copy":
+                            {
+                                try
+                                {
+                                    return Copy(args, json, storageComponents);
+                                }
+                                catch (Exception e)
+                                {
+                                    if (json)
+                                    {
+                                        PrintJsonError("copy", InnermostMessage(e));
+                                    }
+                                    else
+                                    {
+                                        HandleException(e, true, false);
+                                    }
                                     return -1;
                                 }
                             }
@@ -519,6 +541,104 @@ namespace SqlSqueeze.Cli
                 });
             PrintBackupAllResult(result, json);
             return result.AllOk ? 0 : -1;
+        }
+
+        // sqlsqueeze copy <source-storage> <destination-storage> [--max-hours H] [--backoff-seconds S]
+        private static int Copy(string[] args, bool json, Dictionary<string, Type> storageComponents)
+        {
+            double maxHours = 24;
+            double backoffSeconds = 5;
+            List<string> positional = new List<string>();
+            for (int i = 1; i < args.Length; i++)
+            {
+                switch (args[i].ToLowerInvariant())
+                {
+                    case "--max-hours":
+                        maxHours = ParseNumber(NextArg(args, ref i, "--max-hours"), "--max-hours");
+                        break;
+                    case "--backoff-seconds":
+                        backoffSeconds = ParseNumber(NextArg(args, ref i, "--backoff-seconds"), "--backoff-seconds");
+                        break;
+                    default:
+                        positional.Add(args[i]);
+                        break;
+                }
+            }
+            if (positional.Count != 2)
+            {
+                throw new ArgumentException("Usage: sqlsqueeze copy <source-storage> <destination-storage> [--max-hours H] [--backoff-seconds S] [--json]");
+            }
+
+            ConfigPair source = ConfigUtil.ParseComponentConfig(storageComponents, StorageArgToPlugin(positional[0]));
+            ConfigPair destination = ConfigUtil.ParseComponentConfig(storageComponents, StorageArgToPlugin(positional[1]));
+            CopyOptions options = new CopyOptions
+            {
+                MaxDuration = TimeSpan.FromHours(maxHours),
+                BackoffBase = TimeSpan.FromSeconds(backoffSeconds),
+                OnAttemptFailed = (attempt, e) =>
+                {
+                    if (!json)
+                    {
+                        Console.WriteLine(string.Format("attempt {0} failed: {1}", attempt, InnermostMessage(e)));
+                    }
+                },
+            };
+
+            DateTime started = DateTime.UtcNow;
+            CopyResult result = BackupPipeSystem.Copy(source, destination, options);
+            double seconds = (DateTime.UtcNow - started).TotalSeconds;
+
+            if (json)
+            {
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    status = result.Ok ? "ok" : "error",
+                    operation = "copy",
+                    attempts = result.Attempts,
+                    bytesCopied = result.BytesCopied,
+                    elapsedSeconds = seconds,
+                    warnings = result.Warnings,
+                    problems = result.Problems,
+                }));
+            }
+            else
+            {
+                foreach (string warning in result.Warnings)
+                {
+                    Console.WriteLine("warning: " + warning);
+                }
+                foreach (string problem in result.Problems)
+                {
+                    Console.WriteLine("problem: " + problem);
+                }
+                Console.WriteLine(result.Ok
+                    ? string.Format("Copied {0} bytes in {1:0.0}s ({2} attempt(s)).", result.BytesCopied, seconds, result.Attempts)
+                    : "Copy FAILED. Nothing is lost: run the same command again to retry.");
+            }
+            return result.Ok ? 0 : -1;
+        }
+
+        private static double ParseNumber(string text, string flag)
+        {
+            double value;
+            if (!double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value) || value <= 0)
+            {
+                throw new ArgumentException(string.Format("{0} needs a positive number, not: {1}", flag, text));
+            }
+            return value;
+        }
+
+        private static void PrintCopyUsage()
+        {
+            Console.WriteLine("To copy a finished backup, with its manifest, to a second place (another disk or share,");
+            Console.WriteLine("S3, Azure), as stored, with no SQL Server needed:");
+            Console.WriteLine("\tsqlsqueeze copy file:///backups/app.bak.zst \"s3(endpoint=...;bucket=b;key=app.bak.zst;accesskey=...;secretkeyenv=SK)\"");
+            Console.WriteLine("It retries through outages with a growing wait (5s doubling to 5 minutes) for up to 24 hours");
+            Console.WriteLine("(--max-hours, --backoff-seconds), checks what it read against the manifest so a damaged");
+            Console.WriteLine("source is not copied as if it were good, and writes the manifest last, so a destination");
+            Console.WriteLine("with a backup but no manifest is an unfinished copy. A failed attempt is aborted, never left");
+            Console.WriteLine("as a truncated object. It is safe to run again. Both storages need the same number of files.");
+            Console.WriteLine("Append --json for one machine-readable result line.");
         }
 
         // sqlsqueeze restore-chain <folder> <database> --db "db(...)" [--as name] [--stopat time] [--norecovery | --standby file] [--replace] [--kill-connections] [--dry-run]
@@ -1065,6 +1185,7 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze test-restore");
             Console.WriteLine("\tsqlsqueeze unpack");
             Console.WriteLine("\tsqlsqueeze restore-chain");
+            Console.WriteLine("\tsqlsqueeze copy");
             Console.WriteLine("\tsqlsqueeze listplugins");
             Console.WriteLine("\tsqlsqueeze helpplugin");
             Console.WriteLine("\tsqlsqueeze version");
