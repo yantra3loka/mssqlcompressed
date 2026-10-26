@@ -118,6 +118,23 @@ to be remembered or retyped. A manifest never holds a secret, so a backup
 made with a literal `aes(password=...)` cannot be read this way (the error
 says so); use `passwordEnv=` and the variable name is kept.
 
+## Restoring over a database that is in use
+
+A restore over an existing database needs exclusive access, and SQL Server
+refuses if anyone is connected. `sqlsqueeze restore ... --kill-connections`
+(or `KILL_CONNECTIONS` in the db options) rolls back the other sessions
+first. It is opt-in because it ends people's work, and if the restore then
+fails it puts the database back to multi-user instead of leaving it
+single-user.
+
+After a restore that leaves the database usable, users whose login is not on
+this server are reported as a **warning** (the restore still succeeded): the
+usual result of restoring onto another server. Logins are matched by SID, not
+by name, so a login recreated with the same name still leaves the user
+orphaned; fix each with `ALTER USER <user> WITH LOGIN = <login>`. The warning
+appears in the `--json` result as `warnings[]`. It is skipped for a log
+restore, a verify, and while restoring in steps (`NORECOVERY`/`STANDBY`).
+
 ## Scripting
 
 - `--json` on backup/restore/prune: one result object on stdout, exit
@@ -213,8 +230,9 @@ Still to do, in order:
    in a later run and there is no copy-to/log-copy queue (Redgate keeps
    retrying for up to 24 hours). S3 and Azure were tested against moto
    and Azurite only, not real cloud accounts.
-3. **Restore ergonomics.** Kill connections first, restore the latest
-   chain automatically, report orphaned users, restore from cloud.
+3. **Restore the latest chain automatically.** `restore` takes one backup
+   at a time; the PowerShell `Restore-SqlChain` picks a full, differential
+   and logs from a folder by file name.
 4. **Test restores of differential and log chains.** `test-restore` takes
    full backups only.
 
@@ -308,6 +326,15 @@ setups DBAs already run); anything that only works untested.
   a corrupted copy failed and left no output behind. A backup made with a
   literal password has no secret in its manifest (0 occurrences) and
   `--from-manifest` refused it with a clear message.
+- `--kill-connections` and orphaned-user warnings, live against SQL Server
+  2022 on Linux (2026-10-26): **PASS**. With another session open in the
+  database, a restore over it failed with SQL Server's "exclusive access
+  could not be obtained"; with `--kill-connections` it ended that session
+  and succeeded. A restore that failed after the sessions were ended (the
+  file was not a backup) left the database `ONLINE`/`MULTI_USER` with its
+  data. Restoring a backup onto a copy after the login was dropped reported
+  the orphaned user in both the JSON `warnings` and the human output, and a
+  user whose login still matched by SID was not reported.
 - Manifests for `s3` and `azure`, live against moto and Azurite
   (2026-10-26): **PASS**. A `zstd` + `aes` backup of a SQL Server 2022
   database written to each store left the backup and `<key>.manifest.json`

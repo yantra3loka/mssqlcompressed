@@ -115,6 +115,9 @@ queries for "latest per database" and "missing a fresh full".
   `status:"error"` (exit `-1`) means the output was removed. Refusing to
   overwrite, the same source and destination, or a different number of
   files is a top-level `{status:"error", message}` before anything is written.
+- `restore --json` also prints `warnings[]` (for example orphaned users after
+  a restore onto another server); the restore itself succeeded. `restore
+  --kill-connections` rolls back other sessions first.
 - `--from-manifest` (on `unpack`, `restore`, `verify`, `test-restore`) takes
   the pipeline from the manifest instead of the command line; it is an error
   to give both, or to use it where there is no manifest or the pipeline had a
