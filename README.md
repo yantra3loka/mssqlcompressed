@@ -345,7 +345,7 @@ setups DBAs already run); anything that only works untested.
   reject compressed files by design, like Redgate `.sqb` files.
 - Live in CI on free GitHub runners (2026-10-26): **PASS**. SQL Server 2022 on
   Ubuntu 22.04 and SQL Server 2025 on Ubuntu 22.04 and 24.04, each installed
-  natively, run 25 end-to-end checks (`tools/live-test/linux-live.sh`: backup
+  natively, run 25 end-to-end checks (`tools/live-test/live.sh`: backup
   types, restore, `verify --sql`, `test-restore`, `unpack`, `restore-chain`,
   `backup-all`). The first run found that SQL Server 2025 on Linux could not take
   a backup (`undefined symbol: uuid_generate`); the shim now links libuuid. Not

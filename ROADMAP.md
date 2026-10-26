@@ -81,7 +81,7 @@ change, for free".
 
 1. **Run real SQL Server in CI, for free.** *Linux half done (2026-10-26):*
    `.github/workflows/live-sql.yml` installs SQL Server natively on a free runner
-   and runs 25 live checks (`tools/live-test/linux-live.sh`) against 2022 on
+   and runs 25 live checks (`tools/live-test/live.sh`) against 2022 on
    Ubuntu 22.04 and 2025 on 22.04 and 24.04, on every push and pull request and
    weekly. It already paid for itself: SQL Server 2025 on Linux could not take a
    backup at all until the shim linked libuuid. SQL Server 2019 (its package needs
