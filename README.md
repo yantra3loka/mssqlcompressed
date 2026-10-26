@@ -16,11 +16,36 @@ sqlsqueeze backup [mydb] gzip aes(passwordEnv=BACKUP_KEY) file:///backups/mydb.b
 sqlsqueeze restore file:///backups/model.bak.zst zstd [model_restored]
 sqlsqueeze prune "local(dir=/backups;pattern=*.zst;olderThanDays=30)" --json
 sqlsqueeze verify file:///backups/model.bak.zst zstd
+sqlsqueeze backup-all USER_DATABASES,-scratch* zstd "local(path=/backups/{database}/{database}_{backuptype}_{yyyyMMdd_HHmmss}.bak.zst)" --db "db(user=sa;passwordEnv=SQL_PW)"
 ```
 
 Plugins: `db` (database) · `gzip` `bzip2` `zip64` `zstd` `aes` `rate`
 (pipeline) · `local` `s3` `azure` (storage). Run `sqlsqueeze help`,
 `sqlsqueeze listplugins`, `sqlsqueeze helpplugin <name>` for details.
+
+## Backing up many databases
+
+`sqlsqueeze backup-all <databases> [pipeline...] <storage> [--db "db(...)"]
+[--type full|diff|log] [--no-fallback] [--json]` runs one backup per
+database the first argument selects, instead of one command per database.
+
+- **Selecting:** `USER_DATABASES`, `SYSTEM_DATABASES`, `ALL_DATABASES`,
+  names, and `*`/`?` wildcards, comma separated and case-insensitive; a
+  leading `-` excludes (`USER_DATABASES,-scratch*`). tempdb is never
+  backed up; naming a database that does not exist is an error.
+- **Paths:** `{database}` and `{backuptype}` in any storage parameter are
+  replaced per database (`{database}` is required when more than one is
+  selected, so backups cannot overwrite each other). Missing folders are
+  created. Date tokens like `{yyyyMMdd_HHmmss}` work as before.
+- **Log chains:** a differential or log backup that cannot be taken yet,
+  because no full backup exists to build on, becomes a full backup (the
+  result says so), or is skipped with `--no-fallback`. Log backups of
+  SIMPLE-recovery databases, and any backup of a database that is not
+  online, are skipped and reported. `master` is only ever backed up full.
+- **Failures:** one failing database is reported and does not stop the
+  rest; the exit code is `-1` if any failed. Skips are not failures.
+- **Login:** `--db "db(user=sa;passwordEnv=SQL_PW;instancename=...)"` gives
+  the same connection options as `backup`, without `database=`.
 
 ## Verifying a backup
 
@@ -121,7 +146,9 @@ templates · msdb dashboard · CI + binary releases · live validation on
 Windows and Linux · `s3` + `azure` storage plugins · native-format
 `RESTORE VERIFYONLY` Agent job · restore-chain helper (full → diff → logs,
 NORECOVERY/STANDBY) · failure alerting (Agent operator + cron webhook) ·
-write retry with backoff (`writeretries=`) on `local`, `s3` and `azure`.
+write retry with backoff (`writeretries=`) on `local`, `s3` and `azure` ·
+`verify` + backup manifests · `backup-all` (many databases, full/diff/log
+planning).
 
 Still to do, in order:
 
@@ -137,15 +164,12 @@ Still to do, in order:
 3. **Broader live validation.** Windows is verified on SQL Server 2025
    Express and Linux on SQL Server 2022. Still to cover: 2016–2025 on
    both OSes, in CI.
-4. **Multi-database backup and log-chain logic.** One database per
-   command today; no "all user databases", include/exclude patterns, or
-   fall back to a full backup when a log chain has no base.
-5. **Resumable transfers, copy queue, real-cloud testing.** Writes retry
+4. **Resumable transfers, copy queue, real-cloud testing.** Writes retry
    with backoff within a run, but nothing resumes an interrupted upload
    in a later run and there is no copy-to/log-copy queue (Redgate keeps
    retrying for up to 24 hours). S3 and Azure were tested against moto
    and Azurite only, not real cloud accounts.
-6. **Restore ergonomics.** Kill connections first, restore the latest
+5. **Restore ergonomics.** Kill connections first, restore the latest
    chain automatically, report orphaned users, restore from cloud.
 
 Non-goals: a GUI (the engine + scripts + docs slot into the Ola/dbatools
@@ -156,7 +180,9 @@ setups DBAs already run); anything that only works untested.
 - `dotnet build -c Release`: 0 warnings, 0 errors (Linux).
 - CLI `version` / `listplugins` / `help`: pass.
   (`sqlsqueeze v1.3.0.0 (.NET 10.0.13, X64)`, all 8 plugins found.)
-- xUnit suite: **97/97 pass** — manifest, verify (intact, flipped byte,
+- xUnit suite: **139/139 pass** — database selection, full/diff/log
+  planning and the `backup-all` runner (fakes, no SQL Server), data
+  source and `@@VERSION` parsing; manifest, verify (intact, flipped byte,
   truncated, wrong password, striped, no manifest) and every ordered pair
   of pipeline stages written through the real pipeline path; manifest-aware
   prune; pipeline round-trips (gzip, bzip2,
@@ -198,6 +224,22 @@ setups DBAs already run); anything that only works untested.
   without error, only the hashes caught it), and said so when the manifest
   was missing. The `zstd` + `aes` backup restored into a new database with
   identical row count and checksum.
+- `backup-all`, live against SQL Server 2022 on Linux (2026-10-26):
+  **PASS**. Five scratch databases (full recovery, simple recovery, new
+  with no backup, offline, excluded) selected with `sqs_all_*`, so the
+  instance's other databases were not touched. Full: three backed up into
+  per-database folders with manifests, the offline one skipped, the excluded
+  one untouched. Log: full-recovery databases got log backups, the simple one
+  and the offline one were skipped, the new one fell back to a full with the
+  reason reported; `--no-fallback` skipped it instead. Differential and
+  fallback-to-full worked. With one database's folder made unwritable the
+  others still completed and the exit code was `-1`. All 11 backups then
+  passed `verify`.
+- **Differential backups failed on patched SQL Server builds.** The
+  `@@VERSION` parser took the first `-` in the string, which on builds like
+  `2022 (RTM-CU27)` or `2022 (RTM-GDR)` sits inside the parentheses, so a
+  differential backup stopped with "unexpected version string". Fixed;
+  covered by tests with real version strings.
 - **Known fix for old backups:** before this change `zstd` did not close the
   stage after it, so any pipeline with a stage *after* `zstd` (for example
   `zstd aes(...)`) never flushed that stage and wrote a truncated,

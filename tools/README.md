@@ -95,6 +95,15 @@ queries for "latest per database" and "missing a fresh full".
   `manifestFound:false` an `ok` only means the file decoded. The cron
   wrapper reports `problems` as the webhook message, so it can run
   `verify` from cron: `sqlsqueeze-cron.sh verify file:///backups/app.bak.zst zstd`.
+- `sqlsqueeze backup-all <databases> ... --json` prints `{status,
+  operation:"backup-all", results:[{database, backupType, status,
+  message, bytesProcessed, elapsedSeconds}]}`. Each result's `status` is
+  `ok`, `skipped` (with the reason in `message`) or `error`; `backupType`
+  is the type actually run, which differs from the requested one when a
+  diff/log backup fell back to a full (`message` says so). The top-level
+  `status` is `error` and the exit code `-1` if any database failed;
+  skips do not count. Selecting nothing, or several databases into one
+  path, is a top-level `{status:"error", message}` before any backup runs.
 - `local` storage writes `<file>.manifest.json` beside each backup (database,
   type, pipeline with secrets redacted, sizes and SHA-256) and `prune`
   removes it with the backup.
