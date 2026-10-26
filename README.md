@@ -17,6 +17,7 @@ sqlsqueeze restore file:///backups/model.bak.zst zstd [model_restored]
 sqlsqueeze prune "local(dir=/backups;pattern=*.zst;olderThanDays=30)" --json
 sqlsqueeze verify file:///backups/model.bak.zst zstd
 sqlsqueeze test-restore file:///backups/model.bak.zst zstd --db "db(user=sa;passwordEnv=SQL_PW)"
+sqlsqueeze unpack file:///backups/model.bak.zst file:///restore/model.bak --from-manifest
 sqlsqueeze backup-all USER_DATABASES,-scratch* zstd "local(path=/backups/{database}/{database}_{backuptype}_{yyyyMMdd_HHmmss}.bak.zst)" --db "db(user=sa;passwordEnv=SQL_PW)"
 ```
 
@@ -98,6 +99,23 @@ alerts like any other command).
 - `--physical-only` runs the faster `DBCC CHECKDB ... PHYSICAL_ONLY`.
 - It needs free disk space for a copy of the database, and runs as the
   `mssql` user on Linux like `backup` does.
+
+## Getting a native backup back
+
+Nothing here locks you in. `sqlsqueeze unpack <storage> [pipeline...]
+<native-output>` runs a backup back through its pipeline (decrypt,
+decompress) and writes the plain `.bak` SQL Server produced, which
+`RESTORE DATABASE ... FROM DISK` accepts with no SqlSqueeze involved. It
+needs no SQL Server and checks the output against the manifest as it is
+written (and removes it if anything differs). It never overwrites an
+existing file or the source, and a striped backup needs one output file per
+stripe.
+
+`--from-manifest` (on `unpack`, `restore`, `verify` and `test-restore`)
+takes the pipeline from the manifest next to the backup, so it does not have
+to be remembered or retyped. A manifest never holds a secret, so a backup
+made with a literal `aes(password=...)` cannot be read this way (the error
+says so); use `passwordEnv=` and the variable name is kept.
 
 ## Scripting
 
@@ -181,14 +199,14 @@ NORECOVERY/STANDBY) · failure alerting (Agent operator + cron webhook) ·
 write retry with backoff (`writeretries=`) on `local`, `s3` and `azure` ·
 `verify` (hashes, and `--sql` for SQL Server's own `RESTORE VERIFYONLY`) +
 backup manifests · `test-restore` (scratch restore + `DBCC CHECKDB`) ·
-`backup-all` (many databases, full/diff/log planning).
+`unpack` (back to a plain native `.bak`) and `--from-manifest` (no retyping the
+pipeline) · `backup-all` (many databases, full/diff/log planning).
 
 Still to do, in order:
 
-1. **Self-describing backup files, the rest.** The manifest exists for
-   `local` storage. Still to do: manifests for `s3`/`azure`, `restore`
-   reading the pipeline from the manifest instead of needing it retyped,
-   and a way to convert back to a native `.bak`.
+1. **Manifests for `s3` and `azure`.** The manifest, `verify`,
+   `test-restore`, `unpack` and `--from-manifest` all exist for `local`
+   storage only.
 2. **Broader live validation.** Windows is verified on SQL Server 2025
    Express and Linux on SQL Server 2022. Still to cover: 2016–2025 on
    both OSes, in CI.
@@ -283,6 +301,15 @@ setups DBAs already run); anything that only works untested.
   dropped the scratch database. No scratch databases or files were left.
   It refuses a backup with no manifest and a log backup, with a clear
   message.
+- `unpack` and `--from-manifest`, live against SQL Server 2022 on Linux
+  (2026-10-26): **PASS**. A `zstd` + `aes(passwordEnv=)` backup was unpacked
+  with `--from-manifest` into a native `.bak`, and a plain
+  `RESTORE DATABASE ... FROM DISK` run with `sqlcmd` alone restored it with
+  an identical row count and checksum. `restore --from-manifest` through VDI
+  gave the same result. `unpack` refused to overwrite an existing file, and
+  a corrupted copy failed and left no output behind. A backup made with a
+  literal password has no secret in its manifest (0 occurrences) and
+  `--from-manifest` refused it with a clear message.
 - **The VDI library prints an abort notice after the CLI's JSON line.**
   When SQL Server aborts a VDI operation, `libsqlvdi` writes a line like
   `Host_…_SQLVDIMemoryName_0: CVD::GetCommand: Abort bit is set` to stdout

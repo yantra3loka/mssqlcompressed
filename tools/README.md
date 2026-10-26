@@ -110,6 +110,15 @@ queries for "latest per database" and "missing a fresh full".
   `status` is `error` and the exit code `-1` if any database failed;
   skips do not count. Selecting nothing, or several databases into one
   path, is a top-level `{status:"error", message}` before any backup runs.
+- `sqlsqueeze unpack <storage> [pipeline...] <native-output> --json` prints
+  `{status, operation:"unpack", manifestFound, bytesWritten, problems[]}`;
+  `status:"error"` (exit `-1`) means the output was removed. Refusing to
+  overwrite, the same source and destination, or a different number of
+  files is a top-level `{status:"error", message}` before anything is written.
+- `--from-manifest` (on `unpack`, `restore`, `verify`, `test-restore`) takes
+  the pipeline from the manifest instead of the command line; it is an error
+  to give both, or to use it where there is no manifest or the pipeline had a
+  literal secret.
 - `sqlsqueeze test-restore <storage> [pipeline...] --db "db(...)" --json`
   prints `{status, operation:"test-restore", scratchDatabase,
   restoredBytes, dropped, elapsedSeconds, problems[]}`. `status` is `ok`
