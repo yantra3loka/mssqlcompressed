@@ -99,6 +99,8 @@ namespace SqlSqueeze.Plugins.Storage
             List<Stream> results = new List<Stream>(fileInfos.Count);
             foreach (FileInfo fi in fileInfos)
             {
+                // per-database folders (backup-all) do not exist the first time
+                fi.Directory.Create();
                 Stream writer = fi.Open(FileMode.Create);
                 if (writeRetries > 1)
                 {

@@ -92,6 +92,9 @@ namespace SqlSqueeze.Cli
                                     case "verify":
                                         PrintVerifyUsage();
                                         break;
+                                    case "backup-all":
+                                        PrintBackupAllUsage();
+                                        break;
                                     case "listplugins":
                                         Console.WriteLine("Lists the plugins available.  Go on, try it.");
                                         break;
@@ -168,6 +171,25 @@ namespace SqlSqueeze.Cli
                                     return -1;
                                 }
                             }
+                        case "backup-all":
+                            {
+                                try
+                                {
+                                    return BackupAll(args, json, pipelineComponents, databaseComponents, storageComponents);
+                                }
+                                catch (Exception e)
+                                {
+                                    if (json)
+                                    {
+                                        PrintJsonError("backup-all", InnermostMessage(e));
+                                    }
+                                    else
+                                    {
+                                        HandleException(e, true, false);
+                                    }
+                                    return -1;
+                                }
+                            }
                         case "verify":
                             {
                                 try
@@ -176,11 +198,7 @@ namespace SqlSqueeze.Cli
                                     {
                                         throw new ArgumentException("Usage: sqlsqueeze verify <storage> [pipeline...] [--json]");
                                     }
-                                    string storageArg = args[1];
-                                    if (storageArg.StartsWith("file://"))
-                                    {
-                                        storageArg = string.Format("local(path={0})", new Uri(storageArg).LocalPath.Replace(";", ";;"));
-                                    }
+                                    string storageArg = StorageArgToPlugin(args[1]);
                                     ConfigPair storageConfig = ConfigUtil.ParseComponentConfig(storageComponents, storageArg);
                                     List<string> pipelineArgs = new List<string>();
                                     for (int i = 2; i < args.Length; i++)
@@ -333,6 +351,108 @@ namespace SqlSqueeze.Cli
                 Console.WriteLine(string.Format("{0} bytes processed ({1:0.00} MB/s).",
                     stats.BytesProcessed, stats.MegaBytesPerSecond));
             }
+        }
+
+        // file:///x is shorthand for local(path=/x).
+        private static string StorageArgToPlugin(string storageArg)
+        {
+            if (storageArg.StartsWith("file://"))
+            {
+                return string.Format("local(path={0})", new Uri(storageArg).LocalPath.Replace(";", ";;"));
+            }
+            return storageArg;
+        }
+
+        // sqlsqueeze backup-all <databases> [pipeline...] <storage> [--db "db(...)"] [--type t] [--no-fallback]
+        private static int BackupAll(string[] args, bool json, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents, Dictionary<string, Type> storageComponents)
+        {
+            string dbSpec = "db";
+            string type = "full";
+            bool changeBackupType = true;
+            List<string> positional = new List<string>();
+            for (int i = 1; i < args.Length; i++)
+            {
+                switch (args[i].ToLowerInvariant())
+                {
+                    case "--db":
+                        dbSpec = NextArg(args, ref i, "--db");
+                        break;
+                    case "--type":
+                        type = NextArg(args, ref i, "--type").ToLowerInvariant();
+                        if (type == "diff")
+                        {
+                            type = "differential";
+                        }
+                        break;
+                    case "--no-fallback":
+                        changeBackupType = false;
+                        break;
+                    default:
+                        positional.Add(args[i]);
+                        break;
+                }
+            }
+            if (positional.Count < 2)
+            {
+                throw new ArgumentException("Usage: sqlsqueeze backup-all <databases> [pipeline...] <storage> [--db \"db(user=sa;passwordEnv=PW)\"] [--type full|diff|log] [--no-fallback] [--json]");
+            }
+
+            ConfigPair databaseConfig = ConfigUtil.ParseComponentConfig(databaseComponents, dbSpec);
+            ConfigPair storageConfig = ConfigUtil.ParseComponentConfig(storageComponents, StorageArgToPlugin(positional[positional.Count - 1]));
+            List<ConfigPair> pipelineConfig = BuildPipelineFromString(positional.GetRange(1, positional.Count - 2), pipelineComponents);
+
+            BackupAllResult result = BackupAllRunner.Run(new SqlDatabaseCatalog(databaseConfig), positional[0], type, changeBackupType,
+                databaseConfig, pipelineConfig, storageConfig,
+                (db, pipe, storage) =>
+                {
+                    if (!json)
+                    {
+                        Console.WriteLine(string.Format("=== {0} ({1})", db.Parameters["database"][0], db.Parameters["backuptype"][0]));
+                    }
+                    return BackupPipeSystem.Backup(db, pipe, storage, new CommandLineNotifier(true, !json));
+                });
+            PrintBackupAllResult(result, json);
+            return result.AllOk ? 0 : -1;
+        }
+
+        private static string NextArg(string[] args, ref int i, string flag)
+        {
+            if (i + 1 >= args.Length)
+            {
+                throw new ArgumentException(string.Format("{0} needs a value.", flag));
+            }
+            i++;
+            return args[i];
+        }
+
+        private static void PrintBackupAllResult(BackupAllResult result, bool json)
+        {
+            if (json)
+            {
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    status = result.AllOk ? "ok" : "error",
+                    operation = "backup-all",
+                    results = result.Items.ConvertAll(i => new
+                    {
+                        database = i.Database,
+                        backupType = i.BackupType,
+                        status = i.Status,
+                        message = i.Message,
+                        bytesProcessed = i.Stats == null ? (long?)null : i.Stats.BytesProcessed,
+                        elapsedSeconds = i.Stats == null ? (double?)null : i.Stats.Elapsed.TotalSeconds,
+                    }),
+                }));
+                return;
+            }
+
+            Console.WriteLine();
+            foreach (BackupAllItem item in result.Items)
+            {
+                Console.WriteLine(string.Format("{0,-8} {1} ({2}){3}", item.Status.ToUpperInvariant(), item.Database, item.BackupType,
+                    string.IsNullOrEmpty(item.Message) ? string.Empty : ": " + item.Message));
+            }
+            Console.WriteLine(result.AllOk ? "All requested backups completed." : "Some backups FAILED.");
         }
 
         private static void PrintVerifyResult(VerifyResult verified, bool json)
@@ -555,6 +675,7 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze backup");
             Console.WriteLine("\tsqlsqueeze restore");
             Console.WriteLine("\tsqlsqueeze prune");
+            Console.WriteLine("\tsqlsqueeze backup-all");
             Console.WriteLine("\tsqlsqueeze verify");
             Console.WriteLine("\tsqlsqueeze listplugins");
             Console.WriteLine("\tsqlsqueeze helpplugin");
@@ -595,6 +716,23 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("Deletes files in dir matching pattern (default *) whose last-write");
             Console.WriteLine("time is older than olderThanDays (minimum 1). Subfolders are skipped.");
             Console.WriteLine("Append --json for one machine-readable result line.");
+        }
+
+        private static void PrintBackupAllUsage()
+        {
+            Console.WriteLine("To back up several databases, one backup each:");
+            Console.WriteLine("\tsqlsqueeze backup-all USER_DATABASES,-scratch* zstd \\");
+            Console.WriteLine("\t    \"local(path=/backups/{database}/{database}_{backuptype}_{yyyyMMdd_HHmmss}.bak.zst)\" \\");
+            Console.WriteLine("\t    --db \"db(user=sa;passwordEnv=SQL_PW)\"");
+            Console.WriteLine("The first argument picks the databases: USER_DATABASES, SYSTEM_DATABASES, ALL_DATABASES,");
+            Console.WriteLine("names, * and ? wildcards, comma separated; a leading - excludes. tempdb is never backed up.");
+            Console.WriteLine("The last argument is the storage; {database} and {backuptype} in it are replaced per");
+            Console.WriteLine("database ({database} is required when more than one database is selected).");
+            Console.WriteLine("--db gives the db plugin's login/instance options (no database=). --type full|diff|log");
+            Console.WriteLine("(default full). A diff or log backup that cannot be taken yet (no full backup to build on)");
+            Console.WriteLine("becomes a full backup unless --no-fallback; log backups of SIMPLE-recovery databases and");
+            Console.WriteLine("databases that are not online are skipped and reported. One failing database does not");
+            Console.WriteLine("stop the rest; the exit code is -1 if any failed. Append --json for one result line.");
         }
 
         private static void PrintVerifyUsage()
