@@ -33,7 +33,7 @@ namespace SqlSqueeze.Plugins.Storage
     /// backups stream), downloads stream. The bucket is created when
     /// missing. Secrets come from secretkeyenv=, never the command line.
     /// </summary>
-    public class S3Storage : IBackupStorage, IPrunableStorage
+    public class S3Storage : IBackupStorage, IPrunableStorage, IManifestStorage
     {
         private static Dictionary<string, ParameterInfo> mBackupParamSchema;
         private static Dictionary<string, ParameterInfo> mPruneParamSchema;
@@ -66,6 +66,8 @@ namespace SqlSqueeze.Plugins.Storage
 
         private readonly HttpMessageHandler mHandler;
         private readonly List<string> mAbortUploads = new List<string>();
+        private readonly List<string> mWrittenKeys = new List<string>();
+        private const string ManifestSuffix = ".manifest.json";
 
         public S3Storage() : this(null)
         {
@@ -102,9 +104,11 @@ namespace SqlSqueeze.Plugins.Storage
             Console.WriteLine("\tbucket=" + endpoint.Bucket);
 
             List<Stream> results = new List<Stream>(config["key"].Count);
+            mWrittenKeys.Clear();
             foreach (string rawKey in config["key"])
             {
                 string key = LocalStorage.ExpandDateTokens(rawKey);
+                mWrittenKeys.Add(key);
                 Console.WriteLine("\tkey=" + key);
                 Stream writer = new S3MultipartUploadStream(
                     CreateClient(endpoint), endpoint, key, partSizeMB * 1024 * 1024);
@@ -170,11 +174,17 @@ namespace SqlSqueeze.Plugins.Storage
                 foreach (XmlElement content in XmlElements(xml, "Contents"))
                 {
                     string key = XmlInner(content.OuterXml, "Key");
+                    if (key.EndsWith(ManifestSuffix, StringComparison.Ordinal))
+                    {
+                        // a manifest goes with the backup it describes; its backup removes it
+                        continue;
+                    }
                     DateTime modified = DateTime.Parse(XmlInner(content.OuterXml, "LastModified")).ToUniversalTime();
                     string name = key.Contains("/") ? key.Substring(key.LastIndexOf('/') + 1) : key;
                     if (matcher.IsMatch(name) && modified < cutoff)
                     {
                         DeleteKey(endpoint, key);
+                        DeleteKey(endpoint, key + ManifestSuffix);
                         result.DeletedFiles++;
                         result.DeletedPaths.Add(endpoint.Bucket + "/" + key);
                     }
@@ -182,6 +192,55 @@ namespace SqlSqueeze.Plugins.Storage
             } while (!string.IsNullOrEmpty(continuation));
             return result;
         }
+
+        #region IManifestStorage Members
+
+        public IList<string> GetFileNames(Dictionary<string, List<string>> config)
+        {
+            List<string> keys = mWrittenKeys.Count > 0 ? mWrittenKeys : config["key"];
+            List<string> names = new List<string>();
+            foreach (string key in keys)
+            {
+                names.Add(key.Contains("/") ? key.Substring(key.LastIndexOf('/') + 1) : key);
+            }
+            return names;
+        }
+
+        public void WriteManifest(Dictionary<string, List<string>> config, string json)
+        {
+            ParameterInfo.ValidateParams(mBackupParamSchema, config);
+            S3Endpoint endpoint = S3Endpoint.FromConfig(config);
+            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(json);
+            using (Stream writer = new S3MultipartUploadStream(CreateClient(endpoint), endpoint, ManifestKey(config), 5 * 1024 * 1024))
+            {
+                writer.Write(bytes, 0, bytes.Length);
+            }
+        }
+
+        public string ReadManifest(Dictionary<string, List<string>> config)
+        {
+            ParameterInfo.ValidateParams(mBackupParamSchema, config);
+            S3Endpoint endpoint = S3Endpoint.FromConfig(config);
+            HttpRequestMessage request = SignedRequest(endpoint, "GET", ManifestKey(config), null,
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+            using (HttpResponseMessage response = Send(CreateClient(endpoint), request, false))
+            {
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return null;
+                }
+                return ReadBody(response);
+            }
+        }
+
+        // The manifest sits next to the first object. After GetBackupWriter the
+        // date tokens in the configured key are already expanded.
+        private string ManifestKey(Dictionary<string, List<string>> config)
+        {
+            return (mWrittenKeys.Count > 0 ? mWrittenKeys[0] : config["key"][0]) + ManifestSuffix;
+        }
+
+        #endregion
 
         public string CommandLineHelp
         {

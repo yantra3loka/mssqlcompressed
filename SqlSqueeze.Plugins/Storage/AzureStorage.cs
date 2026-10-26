@@ -32,7 +32,7 @@ namespace SqlSqueeze.Plugins.Storage
     /// backups stream. The container is created when missing. The account
     /// key comes from accountkeyenv=, never the command line.
     /// </summary>
-    public class AzureStorage : IBackupStorage, IPrunableStorage
+    public class AzureStorage : IBackupStorage, IPrunableStorage, IManifestStorage
     {
         private static Dictionary<string, ParameterInfo> mBackupParamSchema;
         private static Dictionary<string, ParameterInfo> mPruneParamSchema;
@@ -62,6 +62,8 @@ namespace SqlSqueeze.Plugins.Storage
         }
 
         private readonly HttpMessageHandler mHandler;
+        private readonly List<string> mWrittenBlobs = new List<string>();
+        private const string ManifestSuffix = ".manifest.json";
 
         public AzureStorage() : this(null)
         {
@@ -98,9 +100,11 @@ namespace SqlSqueeze.Plugins.Storage
             Console.WriteLine("\tcontainer=" + endpoint.Container);
 
             List<Stream> results = new List<Stream>(config["blob"].Count);
+            mWrittenBlobs.Clear();
             foreach (string rawBlob in config["blob"])
             {
                 string blob = LocalStorage.ExpandDateTokens(rawBlob);
+                mWrittenBlobs.Add(blob);
                 Console.WriteLine("\tblob=" + blob);
                 Stream writer = new AzureBlockUploadStream(
                     CreateClient(), endpoint, blob, blockSizeMB * 1024 * 1024);
@@ -163,11 +167,17 @@ namespace SqlSqueeze.Plugins.Storage
                 foreach (XmlElement blob in XmlElements(xml, "Blob"))
                 {
                     string name = XmlInner(blob.OuterXml, "Name");
+                    if (name.EndsWith(ManifestSuffix, StringComparison.Ordinal))
+                    {
+                        // a manifest goes with the backup it describes; its backup removes it
+                        continue;
+                    }
                     DateTime modified = DateTime.Parse(XmlInner(blob.OuterXml, "Last-Modified")).ToUniversalTime();
                     string leaf = name.Contains("/") ? name.Substring(name.LastIndexOf('/') + 1) : name;
                     if (matcher.IsMatch(leaf) && modified < cutoff)
                     {
                         DeleteBlob(endpoint, name);
+                        DeleteBlob(endpoint, name + ManifestSuffix, ignoreMissing: true);
                         result.DeletedFiles++;
                         result.DeletedPaths.Add(endpoint.Container + "/" + name);
                     }
@@ -175,6 +185,54 @@ namespace SqlSqueeze.Plugins.Storage
             } while (!string.IsNullOrEmpty(marker));
             return result;
         }
+
+        #region IManifestStorage Members
+
+        public IList<string> GetFileNames(Dictionary<string, List<string>> config)
+        {
+            List<string> blobs = mWrittenBlobs.Count > 0 ? mWrittenBlobs : config["blob"];
+            List<string> names = new List<string>();
+            foreach (string blob in blobs)
+            {
+                names.Add(blob.Contains("/") ? blob.Substring(blob.LastIndexOf('/') + 1) : blob);
+            }
+            return names;
+        }
+
+        public void WriteManifest(Dictionary<string, List<string>> config, string json)
+        {
+            ParameterInfo.ValidateParams(mBackupParamSchema, config);
+            AzureEndpoint endpoint = AzureEndpoint.FromConfig(config);
+            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(json);
+            using (Stream writer = new AzureBlockUploadStream(CreateClient(), endpoint, ManifestBlob(config), 1024 * 1024))
+            {
+                writer.Write(bytes, 0, bytes.Length);
+            }
+        }
+
+        public string ReadManifest(Dictionary<string, List<string>> config)
+        {
+            ParameterInfo.ValidateParams(mBackupParamSchema, config);
+            AzureEndpoint endpoint = AzureEndpoint.FromConfig(config);
+            using (HttpResponseMessage response = Send(CreateClient(),
+                Signed(endpoint, "GET", BlobPath(endpoint, ManifestBlob(config)), null, null, null), false))
+            {
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return null;
+                }
+                return ReadBody(response);
+            }
+        }
+
+        // The manifest sits next to the first blob. After GetBackupWriter the
+        // date tokens in the configured blob name are already expanded.
+        private string ManifestBlob(Dictionary<string, List<string>> config)
+        {
+            return (mWrittenBlobs.Count > 0 ? mWrittenBlobs[0] : config["blob"][0]) + ManifestSuffix;
+        }
+
+        #endregion
 
         public string CommandLineHelp
         {
@@ -213,12 +271,16 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
             }
         }
 
-        internal void DeleteBlob(AzureEndpoint endpoint, string blob)
+        internal void DeleteBlob(AzureEndpoint endpoint, string blob, bool ignoreMissing = false)
         {
             HttpClient client = CreateClient();
             using (HttpResponseMessage response = Send(client,
                 Signed(endpoint, "DELETE", BlobPath(endpoint, blob), null, null, null), false))
             {
+                if (ignoreMissing && response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return;
+                }
                 if (response.StatusCode != HttpStatusCode.OK
                     && response.StatusCode != HttpStatusCode.Accepted
                     && response.StatusCode != HttpStatusCode.NoContent)

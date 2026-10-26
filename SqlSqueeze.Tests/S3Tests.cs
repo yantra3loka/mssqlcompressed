@@ -150,8 +150,10 @@ namespace SqlSqueeze.Tests
                 "pattern=*.bak", "olderThanDays=30",
                 "region=us-east-1", "accesskey=AK", "secretkey=SK"));
             Assert.Equal(1, result.DeletedFiles);
-            Assert.Equal(1, handler.Deleted.Count);
+            // the backup, then the manifest that goes with it (deleting a missing key is a no-op in S3)
+            Assert.Equal(2, handler.Deleted.Count);
             Assert.Contains("/bkt/live/old.bak", handler.Deleted[0]);
+            Assert.Contains("/bkt/live/old.bak.manifest.json", handler.Deleted[1]);
         }
 
         [Fact]
