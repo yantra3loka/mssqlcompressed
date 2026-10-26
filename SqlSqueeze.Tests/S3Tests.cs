@@ -132,7 +132,7 @@ namespace SqlSqueeze.Tests
                         "<LastModified>2099-01-01T00:00:00.000Z</LastModified></Contents>" +
                         "<Contents><Key>live/notes.txt</Key>" +
                         "<LastModified>2020-01-01T00:00:00.000Z</LastModified></Contents>" +
-                        "</ListBucketResult>");
+                        "<NextContinuationToken /></ListBucketResult>");
                     return Task.FromResult(list);
                 }
                 Deleted.Add(request.RequestUri.AbsolutePath);

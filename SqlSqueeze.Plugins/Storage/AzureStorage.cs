@@ -172,7 +172,7 @@ namespace SqlSqueeze.Plugins.Storage
                         result.DeletedPaths.Add(endpoint.Container + "/" + name);
                     }
                 }
-            } while (marker != null);
+            } while (!string.IsNullOrEmpty(marker));
             return result;
         }
 

@@ -75,7 +75,7 @@ namespace SqlSqueeze.Tests
                     list.Content = new StringContent(
                         "<EnumerationResults><Blobs><Blob><Name>live/old.bak</Name>" +
                         "<Properties><Last-Modified>Wed, 01 Jan 2020 00:00:00 GMT</Last-Modified>" +
-                        "</Properties></Blob></Blobs></EnumerationResults>");
+                        "</Properties></Blob></Blobs><NextMarker /></EnumerationResults>");
                     return Task.FromResult(list);
                 }
                 if (request.Method.Method == "GET")

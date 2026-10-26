@@ -179,7 +179,7 @@ namespace SqlSqueeze.Plugins.Storage
                         result.DeletedPaths.Add(endpoint.Bucket + "/" + key);
                     }
                 }
-            } while (continuation != null);
+            } while (!string.IsNullOrEmpty(continuation));
             return result;
         }
 
