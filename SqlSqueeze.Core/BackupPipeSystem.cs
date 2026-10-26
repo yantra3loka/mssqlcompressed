@@ -238,6 +238,62 @@ namespace SqlSqueeze.Core
         }
 
 
+        /// <summary>
+        /// Restores the latest chain found in a folder: the full, differential and logs the
+        /// manifests there describe, in order, each with the pipeline its manifest records.
+        /// With dryRun nothing is restored and the plan is returned. Restoring under another
+        /// name (options.TargetDatabase) places the files in the server's default folders.
+        /// </summary>
+        public static ChainRun RestoreChain(string folder, string database, ConfigPair databaseTemplate, Dictionary<string, Type> pipelineComponents,
+            ChainOptions options, DateTime? stopAtUtc, bool dryRun, IUpdateNotification notifier)
+        {
+            ChainRun run = new ChainRun { DryRun = dryRun };
+            List<ChainCandidate> candidates = RestoreChainScanner.Scan(folder, run.Warnings);
+            run.Plan = RestoreChainPlanner.Plan(candidates, database, stopAtUtc);
+            if (options.TargetDatabase == null)
+            {
+                options.TargetDatabase = database;
+            }
+
+            bool renaming = !string.Equals(options.TargetDatabase, database, StringComparison.OrdinalIgnoreCase);
+            if (renaming && (options.Moves == null || options.Moves.Count == 0))
+            {
+                List<DatabaseFileInfo> files = run.Plan.Steps[0].Candidate.Manifest.DatabaseFiles;
+                if (files == null || files.Count == 0)
+                {
+                    throw new ArgumentException("Restoring under another name needs the database's file list, which this backup's manifest does not have (it was taken before manifests recorded one).");
+                }
+                if (!dryRun)
+                {
+                    ServerPaths paths = new SqlDatabaseCatalog(databaseTemplate).GetDefaultPaths();
+                    options.Moves = TestRestorePlanner.MoveClauses(files, options.TargetDatabase, paths.Data, paths.Log);
+                }
+            }
+
+            if (dryRun)
+            {
+                run.Result = new ChainResult();
+                foreach (ChainStep step in run.Plan.Steps)
+                {
+                    run.Result.Steps.Add(new ChainStepResult { FileName = step.FileName, BackupType = step.BackupType, Status = "planned" });
+                }
+                return run;
+            }
+
+            run.Result = RestoreChainRunner.Run(run.Plan, options, databaseTemplate.Parameters, (step, storage, stepOptions) =>
+            {
+                List<ConfigPair> pipeline = new List<ConfigPair>();
+                foreach (string spec in step.Candidate.Manifest.PipelineSpecsForRestore())
+                {
+                    pipeline.Add(ConfigUtil.ParseComponentConfig(pipelineComponents, spec));
+                }
+                ConfigPair stepDatabase = new ConfigPair { TransformationType = databaseTemplate.TransformationType, Parameters = stepOptions };
+                return Restore(storage, pipeline, stepDatabase, notifier);
+            });
+            return run;
+        }
+
+
         /// <summary>The plugin name plus parameters of each stage, secrets redacted.</summary>
         public static List<string> DescribePipeline(List<ConfigPair> pipelineConfig)
         {
@@ -437,6 +493,7 @@ namespace SqlSqueeze.Core
                 string backupType = FirstValue(databaseConfig.Parameters, "backuptype", "full");
                 BackupManifest manifest = recorder.Build(database, backupType, ((IBackupPlugin)storage).Name,
                     DescribePipeline(pipelineConfig), manifests.GetFileNames(storageConfig.Parameters));
+                manifest.CopyOnly = databaseConfig.Parameters.ContainsKey("copy_only");
                 try
                 {
                     manifest.DatabaseFiles = new SqlDatabaseCatalog(databaseConfig).ListFiles(database);

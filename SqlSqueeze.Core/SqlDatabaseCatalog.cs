@@ -15,6 +15,7 @@
     along with SqlSqueeze.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+using System;
 using System.Collections.Generic;
 using Microsoft.Data.SqlClient;
 using SqlSqueeze.Plugins;
@@ -26,6 +27,12 @@ namespace SqlSqueeze.Core
     /// the state backup-all needs to plan full, differential and log backups.
     /// Connects like a backup does (same login and instance options).
     /// </summary>
+    public class ServerPaths
+    {
+        public string Data { get; set; }
+        public string Log { get; set; }
+    }
+
     public class SqlDatabaseCatalog : IDatabaseCatalog
     {
         private const string Query = @"
@@ -57,6 +64,22 @@ ORDER BY d.name;";
             SqlConnection cnn = new SqlConnection(SqlThread.BuildConnectionString(dataSource, databaseConfig.Parameters));
             cnn.Open();
             return cnn;
+        }
+
+        /// <summary>The server's default data and log folders, where a restore under a new name puts its files.</summary>
+        public ServerPaths GetDefaultPaths()
+        {
+            using (SqlConnection cnn = OpenConnection(mDatabaseConfig))
+            using (SqlCommand cmd = new SqlCommand("SELECT CONVERT(nvarchar(4000), SERVERPROPERTY('InstanceDefaultDataPath')), CONVERT(nvarchar(4000), SERVERPROPERTY('InstanceDefaultLogPath'));", cnn))
+            using (SqlDataReader reader = cmd.ExecuteReader())
+            {
+                reader.Read();
+                if (reader.IsDBNull(0) || reader.IsDBNull(1))
+                {
+                    throw new InvalidOperationException("This SQL Server does not report its default data and log folders (it needs SQL Server 2012 or later).");
+                }
+                return new ServerPaths { Data = reader.GetString(0), Log = reader.GetString(1) };
+            }
         }
 
         /// <summary>Users of a (just restored) database whose login does not exist on this server.</summary>

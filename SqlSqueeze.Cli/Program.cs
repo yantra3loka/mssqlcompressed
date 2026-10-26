@@ -101,6 +101,9 @@ namespace SqlSqueeze.Cli
                                     case "unpack":
                                         PrintUnpackUsage();
                                         break;
+                                    case "restore-chain":
+                                        PrintRestoreChainUsage();
+                                        break;
                                     case "listplugins":
                                         Console.WriteLine("Lists the plugins available.  Go on, try it.");
                                         break;
@@ -186,6 +189,25 @@ namespace SqlSqueeze.Cli
                                 catch (Exception e)
                                 {
                                     HandleException(e, false, json);
+                                    return -1;
+                                }
+                            }
+                        case "restore-chain":
+                            {
+                                try
+                                {
+                                    return RestoreChain(args, json, pipelineComponents, databaseComponents);
+                                }
+                                catch (Exception e)
+                                {
+                                    if (json)
+                                    {
+                                        PrintJsonError("restore-chain", InnermostMessage(e));
+                                    }
+                                    else
+                                    {
+                                        HandleException(e, false, false);
+                                    }
                                     return -1;
                                 }
                             }
@@ -497,6 +519,118 @@ namespace SqlSqueeze.Cli
                 });
             PrintBackupAllResult(result, json);
             return result.AllOk ? 0 : -1;
+        }
+
+        // sqlsqueeze restore-chain <folder> <database> --db "db(...)" [--as name] [--stopat time] [--norecovery | --standby file] [--replace] [--kill-connections] [--dry-run]
+        private static int RestoreChain(string[] args, bool json, Dictionary<string, Type> pipelineComponents, Dictionary<string, Type> databaseComponents)
+        {
+            string dbSpec = null;
+            string asName = null;
+            string stopAt = null;
+            string standby = null;
+            bool noRecovery = false;
+            bool replace = false;
+            bool kill = false;
+            bool dryRun = false;
+            List<string> positional = new List<string>();
+            for (int i = 1; i < args.Length; i++)
+            {
+                switch (args[i].ToLowerInvariant())
+                {
+                    case "--db": dbSpec = NextArg(args, ref i, "--db"); break;
+                    case "--as": asName = NextArg(args, ref i, "--as"); break;
+                    case "--stopat": stopAt = NextArg(args, ref i, "--stopat"); break;
+                    case "--standby": standby = NextArg(args, ref i, "--standby"); break;
+                    case "--norecovery": noRecovery = true; break;
+                    case "--replace": replace = true; break;
+                    case "--kill-connections": kill = true; break;
+                    case "--dry-run": dryRun = true; break;
+                    default: positional.Add(args[i]); break;
+                }
+            }
+            if (positional.Count != 2 || dbSpec == null)
+            {
+                throw new ArgumentException("Usage: sqlsqueeze restore-chain <folder> <database> --db \"db(user=sa;passwordEnv=PW)\" [--as name] [--stopat time] [--norecovery | --standby file] [--replace] [--kill-connections] [--dry-run] [--json]");
+            }
+            if (noRecovery && standby != null)
+            {
+                throw new ArgumentException("Use --norecovery or --standby, not both.");
+            }
+
+            DateTime? stopAtUtc = null;
+            if (stopAt != null)
+            {
+                DateTime parsed;
+                if (!DateTime.TryParse(stopAt, out parsed))
+                {
+                    throw new ArgumentException(string.Format("--stopat could not be understood as a date and time: {0}", stopAt));
+                }
+                stopAtUtc = parsed.ToUniversalTime();
+            }
+
+            ChainOptions options = new ChainOptions
+            {
+                TargetDatabase = asName,
+                Mode = standby != null ? ChainMode.Standby : (noRecovery ? ChainMode.NoRecovery : ChainMode.Recovery),
+                StandbyFile = standby,
+                Replace = replace,
+                KillConnections = kill,
+                StopAt = stopAt,
+            };
+            ConfigPair databaseConfig = ConfigUtil.ParseComponentConfig(databaseComponents, dbSpec);
+
+            ChainRun run = BackupPipeSystem.RestoreChain(positional[0], positional[1], databaseConfig, pipelineComponents, options, stopAtUtc, dryRun, new CommandLineNotifier(false, !json));
+
+            string status = run.DryRun ? "planned" : (run.Result.Ok ? "ok" : "error");
+            if (json)
+            {
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    status = status == "planned" ? "ok" : status,
+                    operation = "restore-chain",
+                    dryRun = run.DryRun,
+                    database = options.TargetDatabase,
+                    bytesProcessed = run.Result.BytesProcessed,
+                    steps = run.Result.Steps.ConvertAll(r => new { file = r.FileName, backupType = r.BackupType, status = r.Status, message = r.Message, bytesProcessed = r.BytesProcessed }),
+                    warnings = run.Warnings,
+                    problems = run.Result.Problems,
+                }));
+            }
+            else
+            {
+                Console.WriteLine();
+                foreach (string warning in run.Warnings)
+                {
+                    Console.WriteLine("warning: " + warning);
+                }
+                Console.WriteLine(string.Format("{0} {1} ({2} step(s)):", run.DryRun ? "Plan to restore" : "Restore of", options.TargetDatabase, run.Result.Steps.Count));
+                foreach (ChainStepResult step in run.Result.Steps)
+                {
+                    Console.WriteLine(string.Format("  {0,-8} {1,-12} {2}{3}", step.Status.ToUpperInvariant(), step.BackupType, step.FileName,
+                        string.IsNullOrEmpty(step.Message) ? string.Empty : ": " + step.Message));
+                }
+                if (!run.DryRun)
+                {
+                    Console.WriteLine(run.Result.Ok ? "Chain restored." : "Chain restore FAILED; the database is left restoring so it can be continued once the cause is fixed.");
+                }
+            }
+            return run.Result.Ok ? 0 : -1;
+        }
+
+        private static void PrintRestoreChainUsage()
+        {
+            Console.WriteLine("To restore the latest full, differential and log backups of a database from a folder:");
+            Console.WriteLine("\tsqlsqueeze restore-chain /backups app --db \"db(user=sa;passwordEnv=SQL_PW)\"");
+            Console.WriteLine("It reads the manifests under the folder (subfolders included, so backup-all's layout works),");
+            Console.WriteLine("takes the latest full, the latest differential after it and every log after that, and");
+            Console.WriteLine("restores them in order with the pipeline each manifest records (NORECOVERY until the last");
+            Console.WriteLine("step). Copy-only backups are not part of a chain. Local folders only for now.");
+            Console.WriteLine("--stopat <time> restores what was current at that time (point in time, server local time).");
+            Console.WriteLine("--as <name> restores under another name, placing the files in the server's default folders.");
+            Console.WriteLine("--norecovery leaves the database restoring; --standby <file> leaves it readable between steps.");
+            Console.WriteLine("--replace and --kill-connections apply to the first step. --dry-run only prints the plan.");
+            Console.WriteLine("Selection goes by when each backup was taken; SQL Server still checks the log sequence");
+            Console.WriteLine("numbers, so a gap fails at that step instead of restoring wrongly. Append --json for one result line.");
         }
 
         // --from-manifest: the pipeline comes from the manifest next to the backup, so it must not also be typed.
@@ -930,6 +1064,7 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("\tsqlsqueeze verify");
             Console.WriteLine("\tsqlsqueeze test-restore");
             Console.WriteLine("\tsqlsqueeze unpack");
+            Console.WriteLine("\tsqlsqueeze restore-chain");
             Console.WriteLine("\tsqlsqueeze listplugins");
             Console.WriteLine("\tsqlsqueeze helpplugin");
             Console.WriteLine("\tsqlsqueeze version");

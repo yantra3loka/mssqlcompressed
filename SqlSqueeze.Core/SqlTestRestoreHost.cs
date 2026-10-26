@@ -53,18 +53,9 @@ namespace SqlSqueeze.Core
             {
                 return;
             }
-            using (SqlConnection cnn = SqlDatabaseCatalog.OpenConnection(mDatabase))
-            using (SqlCommand cmd = new SqlCommand("SELECT CONVERT(nvarchar(4000), SERVERPROPERTY('InstanceDefaultDataPath')), CONVERT(nvarchar(4000), SERVERPROPERTY('InstanceDefaultLogPath'));", cnn))
-            using (SqlDataReader reader = cmd.ExecuteReader())
-            {
-                reader.Read();
-                if (reader.IsDBNull(0) || reader.IsDBNull(1))
-                {
-                    throw new InvalidOperationException("This SQL Server does not report its default data and log folders (it needs SQL Server 2012 or later).");
-                }
-                mDataPath = reader.GetString(0);
-                mLogPath = reader.GetString(1);
-            }
+            ServerPaths paths = new SqlDatabaseCatalog(mDatabase).GetDefaultPaths();
+            mDataPath = paths.Data;
+            mLogPath = paths.Log;
         }
 
         public bool DatabaseExists(string name)

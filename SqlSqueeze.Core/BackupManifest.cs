@@ -58,6 +58,10 @@ namespace SqlSqueeze.Core
         public DateTime CreatedUtc { get; set; }
         public string Database { get; set; }
         public string BackupType { get; set; }
+
+        /// <summary>A copy-only backup: taken outside the normal chain (it does not become a differential base).</summary>
+        public bool CopyOnly { get; set; }
+
         public string Storage { get; set; }
         public List<string> Pipeline { get; set; } = new List<string>();
         public List<ManifestFile> Files { get; set; } = new List<ManifestFile>();

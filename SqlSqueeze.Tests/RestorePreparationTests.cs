@@ -87,12 +87,17 @@ namespace SqlSqueeze.Tests
             Assert.False(RestorePreparation.ShouldReportOrphans(Cfg("database=app", option)));
         }
 
-        [Theory]
-        [InlineData("restoretype=log")]
-        [InlineData("restoretype=verifyonly")]
-        public void Orphans_AreNotReportedForALogRestoreOrAVerify(string option)
+        [Fact]
+        public void Orphans_AreNotReportedForAVerify()
         {
-            Assert.False(RestorePreparation.ShouldReportOrphans(Cfg("database=app", option)));
+            Assert.False(RestorePreparation.ShouldReportOrphans(Cfg("database=app", "restoretype=verifyonly")));
+        }
+
+        [Fact]
+        public void Orphans_AreReportedAfterTheLastLogOfAChainBringsTheDatabaseOnline()
+        {
+            Assert.True(RestorePreparation.ShouldReportOrphans(Cfg("database=app", "restoretype=log", "RECOVERY")));
+            Assert.False(RestorePreparation.ShouldReportOrphans(Cfg("database=app", "restoretype=log", "NORECOVERY")));
         }
 
         // ---- the db plugin ----

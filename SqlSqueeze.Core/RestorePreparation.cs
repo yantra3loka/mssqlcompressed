@@ -35,7 +35,8 @@ namespace SqlSqueeze.Core
 
         /// <summary>
         /// Orphans can only be judged once the database is usable again: not after a
-        /// log or verify-only restore, and not while it is restored in steps.
+        /// verify-only, and not while it is restored in steps (NORECOVERY/STANDBY). The
+        /// last log of a chain, restored with RECOVERY, does bring it online.
         /// </summary>
         public static bool ShouldReportOrphans(Dictionary<string, List<string>> config)
         {
@@ -45,7 +46,7 @@ namespace SqlSqueeze.Core
             }
             List<string> type;
             if (config.TryGetValue("restoretype", out type) && type.Count > 0
-                && !string.Equals(type[0], "database", StringComparison.OrdinalIgnoreCase))
+                && string.Equals(type[0], "verifyonly", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
