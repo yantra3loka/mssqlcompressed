@@ -414,6 +414,31 @@ namespace SqlSqueeze.Tests
         }
 
         [Fact]
+        public void SqlCheck_Passing_KeepsTheResultOkAndSaysSQLServerChecked()
+        {
+            VerifyResult r = new VerifyResult();
+
+            Assert.False(r.SqlChecked);
+            r.RecordSqlCheck(true, "The backup set on file 1 is valid.");
+
+            Assert.True(r.Ok);
+            Assert.True(r.SqlChecked);
+            Assert.Equal("The backup set on file 1 is valid.", r.SqlMessage);
+        }
+
+        [Fact]
+        public void SqlCheck_Failing_MakesTheResultFailWithSQLServersMessage()
+        {
+            VerifyResult r = new VerifyResult();
+
+            r.RecordSqlCheck(false, "Msg 3241: The media family on device is incorrectly formed.");
+
+            Assert.False(r.Ok);
+            Assert.True(r.SqlChecked);
+            Assert.Contains(r.Problems, p => p.Contains("SQL Server") && p.Contains("Msg 3241"));
+        }
+
+        [Fact]
         public void Verify_ManifestListingADifferentNumberOfFiles_Fails()
         {
             string path = Path.Combine(mDir, "count.bak");

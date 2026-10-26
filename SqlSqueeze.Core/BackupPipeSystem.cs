@@ -80,6 +80,49 @@ namespace SqlSqueeze.Core
         }
 
 
+        /// <summary>
+        /// Like Verify, and then also asks SQL Server (RESTORE VERIFYONLY through a
+        /// virtual device, so the pipeline is undone first) whether the backup is
+        /// valid. Skipped when the stream check already failed: SQL Server would
+        /// be reading a file known to be damaged.
+        /// </summary>
+        public static VerifyResult Verify(ConfigPair storageConfig, List<ConfigPair> pipelineConfig, ConfigPair sqlDatabaseConfig, IUpdateNotification notifier)
+        {
+            VerifyResult result = Verify(storageConfig, pipelineConfig);
+            if (sqlDatabaseConfig == null || !result.Ok)
+            {
+                return result;
+            }
+            try
+            {
+                Restore(storageConfig, pipelineConfig, VerifyOnlyConfig(sqlDatabaseConfig), notifier);
+                result.RecordSqlCheck(true, "SQL Server read the whole backup and accepted it (RESTORE VERIFYONLY).");
+            }
+            catch (Exception e)
+            {
+                result.RecordSqlCheck(false, ErrorText.Innermost(e));
+            }
+            return result;
+        }
+
+
+        /// <summary>A copy of the db options that makes the restore side run RESTORE VERIFYONLY.</summary>
+        internal static ConfigPair VerifyOnlyConfig(ConfigPair databaseConfig, string databaseName = null)
+        {
+            Dictionary<string, List<string>> parameters = new Dictionary<string, List<string>>(databaseConfig.Parameters.Comparer);
+            foreach (KeyValuePair<string, List<string>> pair in databaseConfig.Parameters)
+            {
+                parameters[pair.Key] = new List<string>(pair.Value);
+            }
+            parameters["restoretype"] = new List<string> { "verifyonly" };
+            if (databaseName != null)
+            {
+                parameters["database"] = new List<string> { databaseName };
+            }
+            return new ConfigPair { TransformationType = databaseConfig.TransformationType, Parameters = parameters };
+        }
+
+
         /// <summary>The plugin name plus parameters of each stage, secrets redacted.</summary>
         public static List<string> DescribePipeline(List<ConfigPair> pipelineConfig)
         {

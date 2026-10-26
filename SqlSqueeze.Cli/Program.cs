@@ -198,16 +198,30 @@ namespace SqlSqueeze.Cli
                                     {
                                         throw new ArgumentException("Usage: sqlsqueeze verify <storage> [pipeline...] [--json]");
                                     }
-                                    string storageArg = StorageArgToPlugin(args[1]);
-                                    ConfigPair storageConfig = ConfigUtil.ParseComponentConfig(storageComponents, storageArg);
-                                    List<string> pipelineArgs = new List<string>();
-                                    for (int i = 2; i < args.Length; i++)
+                                    // verify <storage> [pipeline...] [--sql "db(user=sa;passwordEnv=PW)"]
+                                    string sqlSpec = null;
+                                    List<string> positional = new List<string>();
+                                    for (int i = 1; i < args.Length; i++)
                                     {
-                                        pipelineArgs.Add(args[i]);
+                                        if (args[i].Equals("--sql", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            sqlSpec = NextArg(args, ref i, "--sql");
+                                        }
+                                        else
+                                        {
+                                            positional.Add(args[i]);
+                                        }
                                     }
-                                    List<ConfigPair> pipelineConfig = BuildPipelineFromString(pipelineArgs, pipelineComponents);
+                                    if (positional.Count < 1)
+                                    {
+                                        throw new ArgumentException("Usage: sqlsqueeze verify <storage> [pipeline...] [--sql \"db(user=sa;passwordEnv=PW)\"] [--json]");
+                                    }
+                                    string storageArg = StorageArgToPlugin(positional[0]);
+                                    ConfigPair storageConfig = ConfigUtil.ParseComponentConfig(storageComponents, storageArg);
+                                    List<ConfigPair> pipelineConfig = BuildPipelineFromString(positional.GetRange(1, positional.Count - 1), pipelineComponents);
+                                    ConfigPair sqlConfig = sqlSpec == null ? null : ConfigUtil.ParseComponentConfig(databaseComponents, sqlSpec);
 
-                                    VerifyResult verified = BackupPipeSystem.Verify(storageConfig, pipelineConfig);
+                                    VerifyResult verified = BackupPipeSystem.Verify(storageConfig, pipelineConfig, sqlConfig, new CommandLineNotifier(false, !json));
                                     PrintVerifyResult(verified, json);
                                     return verified.Ok ? 0 : -1;
                                 }
@@ -466,6 +480,8 @@ namespace SqlSqueeze.Cli
                     manifestFound = verified.ManifestFound,
                     storedBytes = verified.StoredBytes,
                     rawBytes = verified.RawBytes,
+                    sqlChecked = verified.SqlChecked,
+                    sqlMessage = verified.SqlMessage,
                     problems = verified.Problems,
                 }));
                 return;
@@ -482,10 +498,18 @@ namespace SqlSqueeze.Cli
             else if (verified.ManifestFound)
             {
                 Console.WriteLine(string.Format("Verified: {0} bytes stored, {1} bytes decoded; sizes and sha256 match the manifest.", verified.StoredBytes, verified.RawBytes));
+                if (verified.SqlChecked)
+                {
+                    Console.WriteLine(verified.SqlMessage);
+                }
             }
             else
             {
                 Console.WriteLine(string.Format("Decoded {0} bytes without error, but there is no manifest to compare against, so corruption that still decodes cleanly would not be caught.", verified.RawBytes));
+                if (verified.SqlChecked)
+                {
+                    Console.WriteLine(verified.SqlMessage);
+                }
             }
         }
 
@@ -743,8 +767,10 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("The file is read back through the pipeline (decrypt, decompress) and its size and");
             Console.WriteLine("sha256, and those of the decoded stream, are compared with the manifest that");
             Console.WriteLine("backup wrote next to it (<file>.manifest.json). Without a manifest it can only");
-            Console.WriteLine("confirm the file decodes. It does not ask SQL Server whether the decoded stream is");
-            Console.WriteLine("a valid backup. Exit code 0 when verified, -1 otherwise.");
+            Console.WriteLine("confirm the file decodes. Add --sql \"db(user=sa;passwordEnv=PW)\" to also have SQL Server");
+            Console.WriteLine("read the whole backup (RESTORE VERIFYONLY through a virtual device, so it needs the");
+            Console.WriteLine("SQL Server machine and, on Linux, the mssql user); skipped if the file already failed.");
+            Console.WriteLine("Exit code 0 when verified, -1 otherwise.");
             Console.WriteLine("Append --json for one machine-readable result line.");
         }
 

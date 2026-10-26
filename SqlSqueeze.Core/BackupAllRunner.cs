@@ -96,7 +96,7 @@ namespace SqlSqueeze.Core
                 catch (Exception e)
                 {
                     item.Status = "error";
-                    item.Message = Innermost(e);
+                    item.Message = ErrorText.Innermost(e);
                 }
             }
             return result;
@@ -185,18 +185,5 @@ namespace SqlSqueeze.Core
 
         private static readonly char[] UnsafeChars = { '\\', '/', ':', '*', '?', '"', '<', '>', '|' };
 
-        private static string Innermost(Exception e)
-        {
-            ParallelExecutionException parallel = e as ParallelExecutionException;
-            if (parallel != null && parallel.Exceptions.Count > 0)
-            {
-                e = parallel.Exceptions[0];
-            }
-            while (e.InnerException != null)
-            {
-                e = e.InnerException;
-            }
-            return e.Message;
-        }
     }
 }

@@ -30,6 +30,22 @@ namespace SqlSqueeze.Core
         public long StoredBytes { get; set; }
         public long RawBytes { get; set; }
         public List<string> Problems { get; } = new List<string>();
+
+        /// <summary>SQL Server was also asked to verify the backup (RESTORE VERIFYONLY through VDI).</summary>
+        public bool SqlChecked { get; private set; }
+
+        /// <summary>What SQL Server said, when it was asked.</summary>
+        public string SqlMessage { get; private set; }
+
+        public void RecordSqlCheck(bool ok, string message)
+        {
+            SqlChecked = true;
+            SqlMessage = message;
+            if (!ok)
+            {
+                Problems.Add("SQL Server RESTORE VERIFYONLY failed: " + message);
+            }
+        }
     }
 
     /// <summary>
