@@ -97,7 +97,8 @@ jobs:
 
       # Express is free and has the same VDI as every other edition. The default
       # instance, with SQL logins on, so `localhost` and sa work as on Linux.
-      - name: Install SQL Server Express (whatever Microsoft's current download is: 2025 at the time of writing)
+      # The download link is Microsoft's current Express, which is 2025 at the time of writing.
+      - name: Install SQL Server Express
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP 'sqlsetup'
