@@ -24,22 +24,38 @@ namespace SqlSqueeze.Tests
                 "GET",
                 new Uri("https://examplebucket.s3.amazonaws.com/test.txt"),
                 "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                "AKIDEXAMPLE",
-                "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
+                "AKIAIOSFODNN7EXAMPLE",
+                "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
                 "us-east-1",
                 new DateTime(2013, 5, 24, 0, 0, 0, DateTimeKind.Utc),
                 extra);
             Assert.Equal("20130524T000000Z", signed["x-amz-date"]);
-            // NOTE: the AWS doc page prints f0e8bd... for this request, but
-            // that signature does not match its own printed canonical
-            // request: an independent Python recomputation from the printed
-            // canonical request yields 5d66fb... (what this asserts).
-            // Live interop against moto is the real proof (see S3 live notes).
+            // S3 requires the payload hash as a signed header (x-amz-content-sha256), and the
+            // signature below is the one printed on that AWS page for this request.
+            Assert.Equal("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", signed["x-amz-content-sha256"]);
             Assert.Equal(
-                "AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20130524/us-east-1/s3/aws4_request, " +
-                "SignedHeaders=host;range;x-amz-date, " +
-                "Signature=5d66fb2d81386a1a76b0d6d11ff033d15eef06699e0706d32b211f38fde2462c",
+                "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, " +
+                "SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, " +
+                "Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41",
                 signed["Authorization"]);
+        }
+
+        [Fact]
+        public void SignList_EncodesTheQueryOnce()
+        {
+            // A slash, a space and a plus in the prefix: the canonical query string must carry
+            // %2F, %20 and %2B (encoded once). The expected signature was computed independently
+            // (Python, from the SigV4 specification), not with this code.
+            Dictionary<string, string> signed = S3Signer.Sign(
+                "GET",
+                new Uri("https://examplebucket.s3.amazonaws.com/?list-type=2&prefix=db%2Fapp%2F%20sp%2Bx&max-keys=1000"),
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "AKIAIOSFODNN7EXAMPLE",
+                "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+                "us-east-1",
+                new DateTime(2013, 5, 24, 0, 0, 0, DateTimeKind.Utc),
+                null);
+            Assert.EndsWith("Signature=af86fb9073155c88cf24c867a0796dfbc9ea361b08b27e10fcfc5a3d76cb8842", signed["Authorization"]);
         }
 
         [Fact]

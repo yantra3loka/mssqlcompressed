@@ -317,7 +317,9 @@ Prune: azure(endpoint=...;container=...;prefix=...;pattern=*.bak.zst;olderThanDa
 
         internal static string BlobPath(AzureEndpoint endpoint, string blob)
         {
-            return "/" + endpoint.Container + "/" + blob;
+            // Percent-encoded, as it goes on the wire and into the signature: a name with a
+            // space, "%" or "#" would otherwise be rewritten or cut short when the URI is built.
+            return "/" + endpoint.Container + "/" + S3Signer.EncodeKey(blob);
         }
 
         internal static HttpRequestMessage Signed(AzureEndpoint endpoint, string method,

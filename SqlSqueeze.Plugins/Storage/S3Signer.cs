@@ -48,6 +48,9 @@ namespace SqlSqueeze.Plugins.Storage
                 ? uri.Host
                 : uri.Host + ":" + uri.Port.ToString();
             headers["x-amz-date"] = amzDate;
+            // S3 insists on the payload hash as a header, and signed: without it AWS answers
+            // "Missing required header", and strict S3 servers reject the signature.
+            headers["x-amz-content-sha256"] = payloadSha256Hex;
             if (extraHeaders != null)
             {
                 foreach (KeyValuePair<string, string> pair in extraHeaders)
@@ -82,6 +85,7 @@ namespace SqlSqueeze.Plugins.Storage
             Dictionary<string, string> result =
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             result["x-amz-date"] = amzDate;
+            result["x-amz-content-sha256"] = payloadSha256Hex;
             result["Authorization"] = "AWS4-HMAC-SHA256 Credential=" + accessKey + "/"
                 + scope + ", SignedHeaders=" + signedHeaders + ", Signature=" + signature;
             return result;
@@ -186,8 +190,8 @@ namespace SqlSqueeze.Plugins.Storage
                 int equals = part.IndexOf('=');
                 string name = equals < 0 ? part : part.Substring(0, equals);
                 string value = equals < 0 ? string.Empty : part.Substring(equals + 1);
-                pairs[Uri.EscapeDataString(Uri.UnescapeDataString(name))] =
-                    Uri.EscapeDataString(Uri.UnescapeDataString(value));
+                // decoded here, encoded once in EncodeQuery (encoding twice turned %2F into %252F)
+                pairs[Uri.UnescapeDataString(name)] = Uri.UnescapeDataString(value);
             }
             return EncodeQuery(pairs);
         }
