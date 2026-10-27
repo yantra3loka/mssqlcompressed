@@ -482,13 +482,6 @@ namespace SqlSqueeze.Plugins.Database
             }
 
 
-            if (config.ContainsKey("PARTIAL"))
-            {
-                withOptions.Add("PARTIAL");
-            }
-
-
-
             if (config.ContainsKey("READ_WRITE_FILEGROUPS"))
             {
                 filegroupOptions.Add("READ_WRITE_FILEGROUPS");

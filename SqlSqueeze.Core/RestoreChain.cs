@@ -101,12 +101,12 @@ namespace SqlSqueeze.Core
             }
 
             ChainCandidate diff = mine
-                .Where(c => c.Manifest.BackupType == "differential" && c.Manifest.CreatedUtc > full.Manifest.CreatedUtc && c.Manifest.CreatedUtc <= until)
+                .Where(c => c.Manifest.BackupType == "differential" && !c.Manifest.CopyOnly && c.Manifest.CreatedUtc > full.Manifest.CreatedUtc && c.Manifest.CreatedUtc <= until)
                 .OrderBy(c => c.Manifest.CreatedUtc).LastOrDefault();
             ChainCandidate start = diff ?? full;
 
             List<ChainCandidate> logs = mine
-                .Where(c => c.Manifest.BackupType == "log" && c.Manifest.CreatedUtc > start.Manifest.CreatedUtc)
+                .Where(c => c.Manifest.BackupType == "log" && !c.Manifest.CopyOnly && c.Manifest.CreatedUtc > start.Manifest.CreatedUtc)
                 .OrderBy(c => c.Manifest.CreatedUtc).ToList();
             if (stopAtUtc != null)
             {

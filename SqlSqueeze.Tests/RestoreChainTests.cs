@@ -123,6 +123,19 @@ namespace SqlSqueeze.Tests
         }
 
         [Fact]
+        public void Plan_SkipsCopyOnlyDiffsAndLogs()
+        {
+            var all = new List<ChainCandidate>
+            {
+                Cand("full", "09:00"),
+                Cand("differential", "09:30"), Cand("differential", "10:00", copyOnly: true),
+                Cand("log", "10:30"), Cand("log", "11:00", copyOnly: true),
+            };
+
+            Assert.Equal(new[] { "app_full_0900.bak", "app_differential_0930.bak", "app_log_1030.bak" }, Names(RestoreChainPlanner.Plan(all, "app", null)));
+        }
+
+        [Fact]
         public void Plan_IgnoresOtherDatabases_AndMatchesTheNameWithoutCase()
         {
             var all = new List<ChainCandidate> { Cand("full", "09:00", "other"), Cand("full", "08:00", "App"), Cand("log", "10:00", "other") };

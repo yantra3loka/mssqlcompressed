@@ -592,6 +592,15 @@ namespace SqlSqueeze.Core
             try
             {
                 mTask.GetAwaiter().GetResult();
+                if (mMultiUserSql != null)
+                {
+                    // The restore succeeded after other sessions were ended: put the database
+                    // back to multi-user instead of leaving it single-user. A failed rollback
+                    // is returned (not swallowed) so a stranded single-user database is reported.
+                    // MultiUserSql only acts on an ONLINE database, so a chain step left
+                    // RESTORING (NORECOVERY) is untouched.
+                    try { RunNonQuery(mMultiUserSql); } catch (Exception rollback) { return rollback; }
+                }
                 return null;
             }
             catch (Exception e)

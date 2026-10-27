@@ -79,5 +79,13 @@ namespace SqlSqueeze.Tests
         {
             Assert.Throws<ArgumentException>(() => RestoreSql("database=app", "restoretype=nonsense"));
         }
+
+        [Fact]
+        public void Partial_AppearsExactlyOnce()
+        {
+            string sql = RestoreSql("database=app", "PARTIAL");
+
+            Assert.Equal(1, sql.Split(new[] { "PARTIAL" }, StringSplitOptions.None).Length - 1);
+        }
     }
 }
