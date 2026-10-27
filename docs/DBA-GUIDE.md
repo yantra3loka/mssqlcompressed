@@ -122,6 +122,18 @@ Picks the latest full, the latest diff after it, and every log after that
 `--norecovery` / `--standby <file>` (leave restoring/readable),
 `--replace`, `--kill-connections`. Local folders only.
 
+## Cancelling (Ctrl-C)
+
+The first Ctrl-C aborts the running backup or restore gracefully: the
+operation fails through the normal path (exit `-1`), partial output files
+are removed, and a `--kill-connections` restore is put back to MULTI_USER.
+Press Ctrl-C a second time to kill immediately. A press with nothing
+in flight also kills immediately.
+
+One deliberate limit: cancelling a restore leaves the database in the
+RESTORING state (there is no log tail to recover with). Re-run the restore
+(or the chain) to bring it online.
+
 ## Verify without restoring
 
 ```text

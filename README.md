@@ -25,6 +25,11 @@ Plugins: `db` (database) · `gzip` `bzip2` `zip64` `zstd` `aes` `rate`
 (pipeline) · `local` `s3` `azure` (storage). Run `sqlsqueeze help`,
 `sqlsqueeze listplugins`, `sqlsqueeze helpplugin <name>` for details.
 
+Ctrl-C is graceful: the first press aborts the running backup/restore
+through the normal failure path (partial files removed, database put back
+to multi-user); a second press kills immediately.
+
+
 ## DBA start here (one page of links)
 
 - **Download Windows / Linux builds:** [Releases](https://github.com/yantra3loka/sqlsqueeze/releases)
