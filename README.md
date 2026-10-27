@@ -25,6 +25,17 @@ Plugins: `db` (database) · `gzip` `bzip2` `zip64` `zstd` `aes` `rate`
 (pipeline) · `local` `s3` `azure` (storage). Run `sqlsqueeze help`,
 `sqlsqueeze listplugins`, `sqlsqueeze helpplugin <name>` for details.
 
+## DBA start here (one page of links)
+
+- **Download Windows / Linux builds:** [Releases](https://github.com/yantra3loka/sqlsqueeze/releases)
+  (`sqlsqueeze-win-x64.zip`, `sqlsqueeze-linux-x64.tar.gz`).
+- **DBA runbook** (install, backup/restore/chain/verify, scheduling,
+  troubleshooting): [docs/DBA-GUIDE.md](docs/DBA-GUIDE.md).
+- **LLM operator notes** (for driving it via an AI assistant):
+  [AGENTS.md](AGENTS.md).
+- **SQL Agent job templates:** [tools/sql-agent/](tools/sql-agent/).
+- **PowerShell module:** [tools/SqlSqueeze.psm1](tools/SqlSqueeze.psm1).
+
 ## Backing up many databases
 
 `sqlsqueeze backup-all <databases> [pipeline...] <storage> [--db "db(...)"]
