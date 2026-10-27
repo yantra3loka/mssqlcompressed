@@ -150,14 +150,16 @@ namespace SqlSqueeze.Cli
 
                                     List<string> backupArgs = CopySubArgs(args);
                                     List<ConfigPair> copyTo = ExtractCopyTo(backupArgs, storageComponents, out CopyOptions copyOptions);
+                                    bool verify = backupArgs.RemoveAll(a => a.Equals("--verify", StringComparison.OrdinalIgnoreCase)) > 0;
 
                                     List<ConfigPair> pipelineConfig = ParseBackupOrRestoreArgs(backupArgs, isBackup, pipelineComponents, databaseComponents, storageComponents, out databaseConfig, out storageConfig);
 
                                     CommandLineNotifier notifier = new CommandLineNotifier(true, !json);
 
                                     BackupStats stats = BackupPipeSystem.Backup(databaseConfig, pipelineConfig, storageConfig, notifier, copyTo, copyOptions);
-                                    PrintSuccess("backup", stats, json);
-                                    return stats.CopyProblems.Count == 0 ? 0 : -1;
+                                    VerifyResult verified = verify ? BackupPipeSystem.Verify(storageConfig, pipelineConfig) : null;
+                                    PrintSuccess("backup", stats, json, verified);
+                                    return stats.CopyProblems.Count == 0 && (verified == null || verified.Ok) ? 0 : -1;
                                 }
                                 catch (ParallelExecutionException ee)
                                 {
@@ -541,13 +543,13 @@ namespace SqlSqueeze.Cli
             }
         }
 
-        private static void PrintSuccess(string operation, BackupStats stats, bool json)
+        private static void PrintSuccess(string operation, BackupStats stats, bool json, VerifyResult verified = null)
         {
             if (json)
             {
                 Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
                 {
-                    status = "ok",
+                    status = verified == null || verified.Ok ? "ok" : "error",
                     operation = operation,
                     bytesProcessed = stats.BytesProcessed,
                     estimatedBytes = stats.EstimatedBytes,
@@ -556,6 +558,14 @@ namespace SqlSqueeze.Cli
                     warnings = stats.Warnings,
                     copies = stats.Copies.ConvertAll(CopyJson),
                     copyProblems = stats.CopyProblems,
+                    verify = verified == null ? null : new
+                    {
+                        ok = verified.Ok,
+                        manifestFound = verified.ManifestFound,
+                        storedBytes = verified.StoredBytes,
+                        rawBytes = verified.RawBytes,
+                        problems = verified.Problems,
+                    },
                 }));
             }
             else
@@ -568,6 +578,10 @@ namespace SqlSqueeze.Cli
                     Console.WriteLine("warning: " + warning);
                 }
                 PrintCopies(stats);
+                if (verified != null)
+                {
+                    PrintVerifyResult(verified, false);
+                }
             }
         }
 
@@ -587,6 +601,7 @@ namespace SqlSqueeze.Cli
             string dbSpec = "db";
             string type = "full";
             bool changeBackupType = true;
+            bool verify = false;
             List<string> allArgs = new List<string>(args);
             allArgs.RemoveAt(0);
             List<ConfigPair> copyTo = ExtractCopyTo(allArgs, storageComponents, out CopyOptions copyOptions);
@@ -608,6 +623,9 @@ namespace SqlSqueeze.Cli
                         break;
                     case "--no-fallback":
                         changeBackupType = false;
+                        break;
+                    case "--verify":
+                        verify = true;
                         break;
                     default:
                         positional.Add(args[i]);
@@ -635,6 +653,18 @@ namespace SqlSqueeze.Cli
                     }
                     List<ConfigPair> copies = copyTo.ConvertAll(c => BackupAllRunner.ExpandTokens(c, database, backupType));
                     BackupStats stats = BackupPipeSystem.Backup(db, pipe, storage, new CommandLineNotifier(true, !json), copies, copyOptions);
+                    if (verify)
+                    {
+                        VerifyResult verified = BackupPipeSystem.Verify(storage, pipe);
+                        if (!json)
+                        {
+                            PrintVerifyResult(verified, false);
+                        }
+                        if (!verified.Ok)
+                        {
+                            throw new InvalidOperationException(string.Format("verify failed for {0}: {1}", database, string.Join("; ", verified.Problems.ToArray())));
+                        }
+                    }
                     if (!json)
                     {
                         PrintCopies(stats);
@@ -1321,6 +1351,8 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("If a copy fails the backup still stands, the failure is reported and the exit code is -1.");
             Console.WriteLine("");
             Console.WriteLine("For more information on the different pipline options, type sqlsqueeze listplugins");
+            Console.WriteLine("--verify checks the finished backup against its manifest right away (hashes,");
+            Console.WriteLine("no SQL Server needed); a failed verify fails the backup with exit code -1.");
             Console.WriteLine("Append --json for one machine-readable result line (exit code still 0/-1).");
         }
 
@@ -1392,7 +1424,9 @@ namespace SqlSqueeze.Cli
             Console.WriteLine("The last argument is the storage; {database} and {backuptype} in it are replaced per");
             Console.WriteLine("database ({database} is required when more than one database is selected).");
             Console.WriteLine("--db gives the db plugin's login/instance options (no database=). --type full|diff|log");
-            Console.WriteLine("(default full). A diff or log backup that cannot be taken yet (no full backup to build on)");
+            Console.WriteLine("(default full). --verify checks each finished backup against its manifest;");
+            Console.WriteLine("a failed verify fails that database without stopping the rest.");
+            Console.WriteLine("A diff or log backup that cannot be taken yet (no full backup to build on)");
             Console.WriteLine("becomes a full backup unless --no-fallback; log backups of SIMPLE-recovery databases and");
             Console.WriteLine("--copy-to <storage> (repeatable) copies each backup elsewhere right after it is taken; put");
             Console.WriteLine("{database} in its path when several databases are selected. A failed copy is reported and the");

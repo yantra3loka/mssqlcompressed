@@ -36,7 +36,7 @@ safety rules first, then exact mechanics. When in doubt, `--dry-run`
 ## Command shapes (verified)
 
 ```text
-backup  "db(database=D;instancename=I[;backuptype=differential|log])" <pipeline...> "local(path=FILE)" [--copy-to S ...] --json
+backup  "db(database=D;instancename=I[;backuptype=differential|log])" <pipeline...> "local(path=FILE)" [--copy-to S ...] [--verify] --json
 restore "local(path=FILE)" <pipeline...> "db(database=D[;replace][;move='L'TO'P'...])" [--kill-connections] [--from-manifest] --json
 restore-chain DIR DB --db "db" [--as COPY] [--stopat T] [--dry-run] [--replace] [--kill-connections] [--norecovery|--standby F] --json
 verify  "local(path=FILE)" <pipeline...> [--sql "db..."] [--from-manifest] --json

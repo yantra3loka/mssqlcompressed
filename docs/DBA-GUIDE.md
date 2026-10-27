@@ -63,6 +63,11 @@ variable *name* is kept), sizes and SHA-256 hashes. **Keep manifests with
 their backups.** Without one, verify/unpack can only confirm the file
 decodes.
 
+Add `--verify` to any `backup` or `backup-all` to check the finished
+backup against its manifest immediately (hashes, no SQL Server needed) —
+one command, one result line, exit `-1` if the verify fails. This is the
+recommended daily-driver form.
+
 Suggested chain: FULL nightly → DIFF every 4h → LOG every 15min
 (templates in `tools/sql-agent/` create these Agent jobs plus retention).
 
