@@ -184,6 +184,24 @@ sqlsqueeze.exe backup "[MyDB]" zstd "local(path=D:\Backups\MyDB.bak.zst)" --copy
 A failed copy never harms the backup; retry with `sqlsqueeze copy`.
 Source and destination need the same stripe count.
 
+### Streaming vs copy (read this before backing up to the cloud)
+
+You *can* stream a backup straight into S3/Azure by naming it as the
+backup target — each stripe uploads multipart (S3) or in blocks (Azure)
+as SQL Server writes it. But SQL Server writes the data **once**: if the
+network drops mid-backup there is nothing to resume from, and the failed
+attempt is aborted server-side, never left as a truncated object.
+
+The resilient pattern is backup-then-copy: take the backup to local disk,
+then `sqlsqueeze copy` (or `--copy-to`) it to the cloud. Copies retry
+through outages with growing backoff (up to 24 h), resume unfinished
+multipart/block uploads without re-sending verified parts, check every
+byte against the manifest, and write the manifest last — so a destination
+with a backup but no manifest is an unfinished copy, safe to retry or
+ignore. Rule of thumb: stream direct only on reliable networks for small
+DBs; copy for everything else.
+
+
 ## Scheduling (SQL Agent)
 
 Ready-made CmdExec job templates live in `tools/sql-agent/`
