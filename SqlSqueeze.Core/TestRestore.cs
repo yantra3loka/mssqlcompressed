@@ -61,6 +61,7 @@ namespace SqlSqueeze.Core
             List<string> moves = new List<string>();
             int dataIndex = 0;
             int logIndex = 0;
+            int filestreamIndex = 0;
             foreach (DatabaseFileInfo file in files)
             {
                 if (file.LogicalName.Contains("'"))
@@ -80,6 +81,13 @@ namespace SqlSqueeze.Core
                     string name = logIndex == 0 ? scratchName + "_log.ldf" : string.Format("{0}_log_{1}.ldf", scratchName, logIndex);
                     path = Join(logDir, name);
                     logIndex++;
+                }
+                else if (string.Equals(file.Type, "FILESTREAM", StringComparison.OrdinalIgnoreCase))
+                {
+                    // FILESTREAM targets a directory, not a file.
+                    string name = filestreamIndex == 0 ? scratchName + "_fs" : string.Format("{0}_fs_{1}", scratchName, filestreamIndex);
+                    path = Join(dataDir, name);
+                    filestreamIndex++;
                 }
                 else
                 {

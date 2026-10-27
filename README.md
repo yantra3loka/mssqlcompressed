@@ -100,6 +100,11 @@ alerts like any other command).
 - `--physical-only` runs the faster `DBCC CHECKDB ... PHYSICAL_ONLY`.
 - It needs free disk space for a copy of the database, and runs as the
   `mssql` user on Linux like `backup` does.
+- FILESTREAM databases are supported: each FILESTREAM file is moved to its
+  own folder under the server's default data folder (`<scratch>_fs`,
+  `<scratch>_fs_1`, ...). The instance must have FILESTREAM enabled.
+  Anything else that is neither `ROWS` nor `LOG` (e.g. `FULLTEXT`) still
+  refuses with "restore this database by hand".
 
 ## Getting a native backup back
 
@@ -151,7 +156,8 @@ Copy-only backups are not part of a chain.
   time): the latest full and differential before it, and the logs up to and
   including the first one taken after it, with `STOPAT` applied.
 - `--as <name>` restores under another name, placing the files in the
-  server's default folders (it needs the file list in the manifest).
+  server's default folders (it needs the file list in the manifest;
+  FILESTREAM files go to their own folders there too).
   `--replace` and `--kill-connections` apply to the first step.
 - `--norecovery` leaves the database restoring for more logs later;
   `--standby <file>` leaves it readable between steps (log shipping).

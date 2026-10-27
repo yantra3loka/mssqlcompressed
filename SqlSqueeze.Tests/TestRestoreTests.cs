@@ -68,12 +68,28 @@ namespace SqlSqueeze.Tests
         }
 
         [Fact]
-        public void MoveClauses_RefuseFilestreamAndAnythingElseItCannotPlace()
+        public void MoveClauses_PlacesFilestreamFilesInTheirOwnFolders()
+        {
+            List<string> moves = TestRestorePlanner.MoveClauses(
+                new[] { File("a", "ROWS"), File("fs1", "FILESTREAM"), File("fs2", "filestream"), File("l", "LOG") },
+                "s", "/d/", "/l/");
+
+            Assert.Equal(new[]
+            {
+                "'a'TO'/d/s.mdf'",
+                "'fs1'TO'/d/s_fs'",
+                "'fs2'TO'/d/s_fs_1'",
+                "'l'TO'/l/s_log.ldf'",
+            }, moves.ToArray());
+        }
+
+        [Fact]
+        public void MoveClauses_RefuseAnythingElseItCannotPlace()
         {
             ArgumentException e = Assert.Throws<ArgumentException>(() =>
-                TestRestorePlanner.MoveClauses(new[] { File("a", "ROWS"), File("fs", "FILESTREAM") }, "s", "/d/", "/l/"));
+                TestRestorePlanner.MoveClauses(new[] { File("a", "ROWS"), File("ft", "FULLTEXT") }, "s", "/d/", "/l/"));
 
-            Assert.Contains("FILESTREAM", e.Message);
+            Assert.Contains("FULLTEXT", e.Message);
         }
 
         [Fact]
