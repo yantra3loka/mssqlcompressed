@@ -11,7 +11,7 @@ package version number does not match assembly's version number.
 [done: release.yml stamps /p:Version from the v* tag; csproj carries the base]
 
 cntl-c kills the app, but we can handle the event: http://www.codeneverwritten.com/2006/10/ctrl-c-and-net-console-application.html
-[done (v1.7.0+): first press signals VDI abort so the normal failure path
+[done on master after v1.7.0 (unreleased): first press signals VDI abort so the normal failure path
 runs (partial files removed, KILL_CONNECTIONS restore back to multi-user);
 second press, or a press with nothing in flight, kills immediately.
 Live-verified: mid-backup cancel exits -1 with SQL abort message, no
