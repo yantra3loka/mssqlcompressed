@@ -11,8 +11,12 @@ package version number does not match assembly's version number.
 [done: release.yml stamps /p:Version from the v* tag; csproj carries the base]
 
 cntl-c kills the app, but we can handle the event: http://www.codeneverwritten.com/2006/10/ctrl-c-and-net-console-application.html
-[open: no CancelKeyPress handling anywhere; a Ctrl-C mid-backup relies on
-abort/cleanup paths, mid-restore can strand SINGLE_USER/RESTORING state]
+[done (v1.7.0+): first press signals VDI abort so the normal failure path
+runs (partial files removed, KILL_CONNECTIONS restore back to multi-user);
+second press, or a press with nothing in flight, kills immediately.
+Live-verified: mid-backup cancel exits -1 with SQL abort message, no
+partial left behind. Mid-restore cancel still leaves the DB RESTORING by
+design — documented, not fixed.]
 
 Do escaped cmd line args work?
 [done: ";;" escapes ";" in component configs (ConfigUtil)]

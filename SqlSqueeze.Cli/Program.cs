@@ -44,6 +44,19 @@ namespace SqlSqueeze.Cli
             // Scripting switch: a trailing --json makes backup/restore print
             // one JSON result object instead of human text. Exit codes stay
             // 0 on success, -1 on any failure.
+            //
+            // Ctrl-C: the first press aborts the in-flight VDI operation so the
+            // normal failure path runs (cleanup, multi-user rollback); a second
+            // press kills immediately, as does a press with nothing in flight.
+            OperationCanceller.Reset();
+            Console.CancelKeyPress += (sender, e) =>
+            {
+                e.Cancel = OperationCanceller.OnCancelKeyPress();
+                if (e.Cancel)
+                {
+                    Console.Error.WriteLine("Cancelling... press Ctrl-C again to force exit.");
+                }
+            };
             bool json = false;
             if (args.Length > 0 && args[args.Length - 1].Equals("--json", StringComparison.OrdinalIgnoreCase))
             {

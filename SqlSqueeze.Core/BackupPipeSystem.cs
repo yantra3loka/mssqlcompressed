@@ -32,6 +32,65 @@ namespace SqlSqueeze.Core
 {
     public static class BackupPipeSystem
     {
+        private static readonly object sCancelLock = new object();
+        private static IVirtualDeviceSet sActiveDeviceSet;
+
+        /// <summary>
+        /// Ctrl-C entry point: signal VDI abort on the in-flight operation, if any.
+        /// Returns true when an abort was signalled (the caller should swallow the
+        /// key press and let the normal failure path run), false when nothing is
+        /// in flight (the caller should let the process die as before).
+        /// </summary>
+        public static bool RequestCancel()
+        {
+            lock (sCancelLock)
+            {
+                if (sActiveDeviceSet == null)
+                {
+                    return false;
+                }
+                try { sActiveDeviceSet.SignalAbort(); }
+                catch (Exception) { }
+                return true;
+            }
+        }
+
+        internal static void TrackDeviceSet(IVirtualDeviceSet deviceSet)
+        {
+            lock (sCancelLock)
+            {
+                sActiveDeviceSet = deviceSet;
+            }
+        }
+
+        internal static void UntrackDeviceSet(IVirtualDeviceSet deviceSet)
+        {
+            lock (sCancelLock)
+            {
+                if (object.ReferenceEquals(sActiveDeviceSet, deviceSet))
+                {
+                    sActiveDeviceSet = null;
+                }
+            }
+        }
+
+        /// <summary>Tracks the in-flight VDI set so Ctrl-C can abort it; untracks on dispose.</summary>
+        private sealed class ActiveDeviceSet : IDisposable
+        {
+            private readonly IVirtualDeviceSet mSet;
+
+            public ActiveDeviceSet(IVirtualDeviceSet set)
+            {
+                mSet = set;
+                TrackDeviceSet(set);
+            }
+
+            public void Dispose()
+            {
+                UntrackDeviceSet(mSet);
+            }
+        }
+
         public static Dictionary<string, Type> LoadTransformComponents()
         {
             return LoadComponents("IBackupTransformer");
@@ -402,7 +461,7 @@ namespace SqlSqueeze.Core
                 //NotifyWhenReady notifyWhenReady = new NotifyWhenReady(deviceName, isBackup);))
                 using (IVirtualDeviceSet deviceSet = VirtualBackupDeviceFactory.NewVirtualDeviceSet(sqlPlatform))
                 {
-
+                    using (new ActiveDeviceSet(deviceSet))
                     using (SqlThread sql = new SqlThread())
                     {
                         bool sqlStarted = false;
