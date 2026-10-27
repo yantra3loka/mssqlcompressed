@@ -1,3 +1,8 @@
+---
+layout: page
+title: SqlSqueeze DBA Guide
+---
+
 # SqlSqueeze DBA Guide
 
 Backup and restore SQL Server with compression where native
